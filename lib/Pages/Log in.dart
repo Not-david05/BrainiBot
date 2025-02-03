@@ -1,23 +1,10 @@
+import 'package:brainibot/Pages/Sign%20in.dart';
+import 'package:brainibot/Pages/Starter.dart';
+import 'package:brainibot/Widgets/Authform.dart';
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(MyApp());
-}
 
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Registro Form',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: RegistroPage(),
-    );
-  }
-}
-
-class RegistroPage extends StatelessWidget {
+class LogInPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -33,79 +20,55 @@ class RegistroPage extends StatelessWidget {
           child: SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Card(
-                elevation: 8,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+              child: Column(
+                children: [
+                  AuthForm(
+                    title: 'Log In',
+                    buttonText: 'Log In',
+                    onSubmit: () {
+                     Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => Starter(),
+                        ),
+                      );
+                    },
+                    imagePath: "lib/images/brainibot.png", // Optional: Add an image
+                  ),
+                  SizedBox(height: 16), // Space between the form and the message
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'Registro',
+                        '¿Todavía no estás registrado? ',
                         style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue.shade800,
+                          color: Colors.white,
+                          fontSize: 16,
                         ),
                       ),
-                      SizedBox(height: 24),
-                      TextField(
-                        decoration: InputDecoration(
-                          labelText: 'Username',
-                          prefixIcon: Icon(Icons.person),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      TextField(
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          labelText: 'Password',
-                          prefixIcon: Icon(Icons.lock),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            // Add your registration logic here
-                          },
-                          style: ElevatedButton.styleFrom(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                      GestureDetector(
+                        onTap: () {
+                          // Navigate to the SignInPage
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SignInPage(),
                             ),
-                          ),
-                          child: Text(
-                            'Registrarse',
-                            style: TextStyle(fontSize: 18),
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      TextButton(
-                        onPressed: () {
-                          // Add your forgot password logic here
+                          );
                         },
                         child: Text(
-                          '¿Olvidaste tu contraseña?',
+                          'Sign In',
                           style: TextStyle(
-                            color: Colors.blue.shade800,
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            decoration: TextDecoration.underline,
                           ),
                         ),
                       ),
                     ],
                   ),
-                ),
+                ],
               ),
             ),
           ),
