@@ -1,3 +1,4 @@
+import 'package:brainibot/Pages/TaskC.dart';
 import 'package:flutter/material.dart';
 
 class Starter extends StatelessWidget {
@@ -91,6 +92,20 @@ class TaskManagerScreen extends StatelessWidget {
           ElevatedButton(
             onPressed: () {},
             child: Text("View 231 Tareas"),
+          ),
+          SizedBox(height: 10),
+          FloatingActionButton(
+            onPressed: () {
+              // Acción para añadir una nueva tarea
+              Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => TaskC(),
+                        ),
+                      );
+            },
+            child: Icon(Icons.add),
+            backgroundColor: Colors.purple,
           ),
         ],
       ),
