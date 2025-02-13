@@ -78,6 +78,7 @@ class TaskManagerScreen extends StatelessWidget {
                 ),
                 SizedBox(height: 10),
                 ToggleButtons(
+                  borderRadius: BorderRadius.circular(10),
                   isSelected: [true, false],
                   children: [Text("Completadas"), Text("En progreso")],
                   onPressed: (index) {},
@@ -96,13 +97,12 @@ class TaskManagerScreen extends StatelessWidget {
           SizedBox(height: 10),
           FloatingActionButton(
             onPressed: () {
-              // Acción para añadir una nueva tarea
               Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => TaskC(),
-                        ),
-                      );
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TaskC(),
+                ),
+              );
             },
             child: Icon(Icons.add),
             backgroundColor: Colors.purple,
@@ -121,6 +121,33 @@ class TaskItem extends StatelessWidget {
 
   TaskItem({required this.title, required this.category, required this.priority, required this.stars});
 
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("Confirmar eliminación"),
+          content: Text("¿Deseas eliminar esta tarea?"),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text("Cancelar"),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Aquí puedes agregar la lógica para eliminar la tarea
+              },
+              child: Text("Eliminar", style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -134,7 +161,10 @@ class TaskItem extends StatelessWidget {
             Icon(Icons.star, color: Colors.yellow),
             Text(stars.toString()),
             SizedBox(width: 10),
-            Icon(Icons.delete, color: Colors.red),
+            IconButton(
+              icon: Icon(Icons.delete, color: Colors.red),
+              onPressed: () => _confirmDelete(context),
+            ),
           ],
         ),
       ),

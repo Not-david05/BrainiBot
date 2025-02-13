@@ -4,7 +4,6 @@ import 'package:brainibot/Pages/User%20page.dart';
 import 'package:brainibot/Widgets/Authform.dart';
 import 'package:flutter/material.dart';
 
-
 class LogInPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -27,16 +26,17 @@ class LogInPage extends StatelessWidget {
                     title: 'Log In',
                     buttonText: 'Log In',
                     onSubmit: () {
-                     Navigator.pushReplacement(
+                      Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(
                           builder: (context) => User_page(),
                         ),
                       );
                     },
-                    imagePath: "lib/images/brainibot.png", // Optional: Add an image
+                    imagePath: "lib/images/brainibot.png",
+                    showForgotPassword: true, // Mostrar solo en LogInPage
                   ),
-                  SizedBox(height: 16), // Space between the form and the message
+                  SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -49,7 +49,6 @@ class LogInPage extends StatelessWidget {
                       ),
                       GestureDetector(
                         onTap: () {
-                          // Navigate to the SignInPage
                           Navigator.push(
                             context,
                             MaterialPageRoute(

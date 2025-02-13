@@ -1,10 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:flutter/material.dart';
-
-
-
-
 class Chat_page extends StatefulWidget {
   @override
   _Chat_pageState createState() => _Chat_pageState();

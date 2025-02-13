@@ -57,7 +57,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 SizedBox(height: 16),
                 Container(
-                  height: 300,
+                  height: 400,
                   child: TableCalendar(
                     firstDay: DateTime.utc(2020, 1, 1),
                     lastDay: DateTime.utc(2030, 12, 31),

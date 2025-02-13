@@ -1,6 +1,8 @@
+
 import 'package:brainibot/Pages/Starter.dart';
 import 'package:brainibot/Widgets/Authform.dart';
 import 'package:flutter/material.dart';
+
 class SignInPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -21,15 +23,14 @@ class SignInPage extends StatelessWidget {
                 title: 'Sign In',
                 buttonText: 'Sign In',
                 onSubmit: () {
-                  // Add your sign-in logic here
                   Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => Starter(),
-                        ),
-                      );
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => Starter(),
+                    ),
+                  );
                 },
-                imagePath: "lib/images/brainibot.png", // Optional: Add an image
+                imagePath: "lib/images/brainibot.png",
               ),
             ),
           ),
@@ -38,4 +39,3 @@ class SignInPage extends StatelessWidget {
     );
   }
 }
-
