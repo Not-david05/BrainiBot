@@ -1,4 +1,3 @@
-
 import 'package:brainibot/Pages/Starter.dart';
 import 'package:brainibot/Widgets/Authform.dart';
 import 'package:flutter/material.dart';
@@ -20,8 +19,8 @@ class SignInPage extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: AuthForm(
-                title: 'Sign In',
-                buttonText: 'Sign In',
+                title: 'Sign up',
+                buttonText: 'Sign up',
                 onSubmit: () {
                   Navigator.pushReplacement(
                     context,
@@ -31,6 +30,7 @@ class SignInPage extends StatelessWidget {
                   );
                 },
                 imagePath: "lib/images/brainibot.png",
+                showRememberMe: true, // Visible only in Sign In
               ),
             ),
           ),
@@ -39,3 +39,4 @@ class SignInPage extends StatelessWidget {
     );
   }
 }
+

@@ -6,6 +6,7 @@ class AuthForm extends StatelessWidget {
   final VoidCallback onSubmit;
   final String? imagePath;
   final bool showForgotPassword;
+  final bool showRememberMe;
 
   const AuthForm({
     Key? key,
@@ -14,10 +15,13 @@ class AuthForm extends StatelessWidget {
     required this.onSubmit,
     this.imagePath,
     this.showForgotPassword = false,
+    this.showRememberMe = false,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    bool _rememberMe = false;
+
     return Card(
       elevation: 8,
       shape: RoundedRectangleBorder(
@@ -64,6 +68,26 @@ class AuthForm extends StatelessWidget {
                 ),
               ),
             ),
+             SizedBox(height: 16),
+            if (showRememberMe)
+              Row(
+                children: [
+                  StatefulBuilder(
+                    builder: (context, setState) => Checkbox(
+                      value: _rememberMe,
+                      onChanged: (value) {
+                        setState(() {
+                          _rememberMe = value!;
+                        });
+                      },
+                    ),
+                  ),
+                  Text(
+                    'Remember me',
+                    style: TextStyle(color: Colors.black),
+                  ),
+                ],
+              ),
             SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
@@ -102,4 +126,5 @@ class AuthForm extends StatelessWidget {
     );
   }
 }
+
 

@@ -1,4 +1,4 @@
-import 'package:brainibot/Pages/Sign%20in.dart';
+import 'package:brainibot/Pages/Sign%20up.dart';
 import 'package:brainibot/Pages/Starter.dart';
 import 'package:brainibot/Pages/User%20page.dart';
 import 'package:brainibot/Widgets/Authform.dart';
