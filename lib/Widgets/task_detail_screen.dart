@@ -48,25 +48,24 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     super.dispose();
   }
 
-  void _deleteTask() {
-    // Aquí puedes implementar la lógica para eliminar la tarea, 
-    // como eliminarla de la base de datos, o de una lista, etc.
+  void _editField(BuildContext context, String label, TextEditingController controller) {
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text("Eliminar tarea"),
-          content: Text("¿Estás seguro de que deseas eliminar esta tarea?"),
+          title: Text("Editar $label"),
+          content: TextField(
+            controller: controller,
+            decoration: InputDecoration(border: OutlineInputBorder()),
+          ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: Text("Cancelar")),
             TextButton(
               onPressed: () {
+                setState(() {});
                 Navigator.pop(context);
-                // Aquí puedes agregar el código para realizar la eliminación.
-                ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Tarea eliminada')));
               },
-              child: Text("Eliminar", style: TextStyle(color: Colors.red)),
+              child: Text("Guardar", style: TextStyle(color: Colors.blue)),
             ),
           ],
         );
@@ -82,18 +81,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         backgroundColor: Colors.purple[100],
         title: Text("Detalles de la tarea"),
         actions: [
-          // Botón de eliminar
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8.0),
-                color: const Color.fromARGB(255, 255, 255, 255),
-              ),
-              child: IconButton(
-                icon: Icon(Icons.delete, color: const Color.fromARGB(255, 216, 21, 7),size: 50,),
-                onPressed: _deleteTask,
-              ),
+            child: IconButton(
+              icon: Icon(Icons.delete, color: Colors.red, size: 30),
+              onPressed: () {}, // Implementar lógica de eliminación
             ),
           ),
         ],
@@ -103,7 +95,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Imagen o icono de la tarea
             Container(
               height: 200,
               decoration: BoxDecoration(
@@ -113,97 +104,35 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               child: Center(child: Icon(Icons.image, size: 100, color: Colors.grey[600])),
             ),
             SizedBox(height: 20),
-
-            // Tarjeta con los detalles de la tarea
+            
             Card(
               elevation: 3,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              child: Padding(
-                padding: EdgeInsets.all(12.0),
-                child: Column(
-                  children: [
-                    _buildDetailTile(Icons.title, "Título", widget.title),
-                    _buildDetailTile(Icons.category, "Categoría", widget.category),
-                    _buildDetailTile(Icons.flag, "Prioridad", widget.priority),
-                    _buildDetailTile(Icons.star, "Estrellas", widget.stars.toString()),
-                    _buildDetailTile(Icons.calendar_today, "Fecha de vencimiento",
-                        "${widget.dueDate.day}/${widget.dueDate.month}/${widget.dueDate.year}"),
-                  ],
-                ),
+              child: Column(
+                children: [
+                  _buildDetailTile(Icons.title, "Título", _titleController),
+                  _buildDetailTile(Icons.category, "Categoría", _categoryController),
+                  _buildDetailTile(Icons.flag, "Prioridad", _priorityController),
+                  _buildDetailTile(Icons.star, "Estrellas", _starsController),
+                  _buildDetailTile(Icons.calendar_today, "Fecha de vencimiento", _dateController),
+                ],
               ),
             ),
-
-            SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                "Editar detalles",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            SizedBox(height: 10),
-            _buildEditableField("Título", _titleController),
-            _buildEditableField("Categoría", _categoryController),
-            _buildEditableField("Prioridad", _priorityController),
-            _buildEditableField("Estrellas", _starsController),
-            _buildEditableField("Fecha de vencimiento", _dateController),
           ],
         ),
       ),
     );
   }
 
-  // Widget para mostrar detalles en formato ListTile
-  Widget _buildDetailTile(IconData icon, String label, String value) {
+  Widget _buildDetailTile(IconData icon, String label, TextEditingController controller) {
     return ListTile(
       leading: Icon(icon, color: Colors.purple),
       title: Text(label, style: TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text(value, style: TextStyle(fontSize: 16)),
-    );
-  }
-
-  // Widget para editar detalles de la tarea
-  Widget _buildEditableField(String label, TextEditingController controller) {
-    return Padding(
-      padding: EdgeInsets.all(16.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(child: Text(label, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
-          IconButton(
-            icon: Icon(Icons.edit, color: Colors.blue),
-            onPressed: () {
-              _editField(context, label, controller);
-            },
-          ),
-        ],
+      subtitle: Text(controller.text, style: TextStyle(fontSize: 16)),
+      trailing: IconButton(
+        icon: Icon(Icons.edit, color: Colors.blue),
+        onPressed: () => _editField(context, label, controller),
       ),
-    );
-  }
-
-  // Función para editar un campo
-  void _editField(BuildContext context, String label, TextEditingController controller) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("Editar $label"),
-          content: TextField(
-            controller: controller,
-            decoration: InputDecoration(border: OutlineInputBorder()),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: Text("Cancelar")),
-            TextButton(
-              onPressed: () {
-                setState(() {}); // Refrescar pantalla
-                Navigator.pop(context);
-              },
-              child: Text("Guardar", style: TextStyle(color: Colors.blue)),
-            ),
-          ],
-        );
-      },
     );
   }
 }
