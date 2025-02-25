@@ -1,4 +1,5 @@
 import 'package:brainibot/Pages/Starter.dart';
+import 'package:brainibot/Widgets/Time_builder.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 
@@ -125,6 +126,8 @@ class _TaskCState extends State<TaskC> {
             }),
             SizedBox(height: 20),
             _buildDateSelector(context),
+            SizedBox(height: 20),
+            TimeBuilder(context),
             SizedBox(height: 20),
             _buildSubmitButton(),
           ],

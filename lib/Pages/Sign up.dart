@@ -1,4 +1,5 @@
 import 'package:brainibot/Pages/Starter.dart';
+import 'package:brainibot/Pages/User%20page.dart';
 import 'package:brainibot/Widgets/Authform.dart';
 import 'package:flutter/material.dart';
 
@@ -25,7 +26,7 @@ class SignInPage extends StatelessWidget {
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => Starter(),
+                      builder: (context) => User_page(),
                     ),
                   );
                 },

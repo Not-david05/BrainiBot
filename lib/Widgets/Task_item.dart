@@ -1,3 +1,4 @@
+import 'package:brainibot/Widgets/task_detail_screen.dart';
 import 'package:flutter/material.dart';
 
 class TaskItem extends StatelessWidget {
@@ -5,32 +6,15 @@ class TaskItem extends StatelessWidget {
   final String category;
   final String priority;
   final int stars;
+  final DateTime dueDate;
+  TaskItem({required this.title, required this.category, required this.priority, required this.stars, required this.dueDate});
 
-  TaskItem({required this.title, required this.category, required this.priority, required this.stars});
-
-  void _confirmDelete(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text("Confirmar eliminación"),
-          content: Text("¿Deseas eliminar esta tarea?"),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text("Cancelar"),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text("Eliminar", style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        );
-      },
+  void _navigateToTaskDetail(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TaskDetailScreen(title: title, category: category, priority: priority, stars: stars, dueDate: dueDate,),
+      ),
     );
   }
 
@@ -46,13 +30,9 @@ class TaskItem extends StatelessWidget {
           children: [
             Icon(Icons.star, color: Colors.yellow),
             Text(stars.toString()),
-            SizedBox(width: 10),
-            IconButton(
-              icon: Icon(Icons.delete, color: Colors.red),
-              onPressed: () => _confirmDelete(context),
-            ),
           ],
         ),
+        onTap: () => _navigateToTaskDetail(context),
       ),
     );
   }
