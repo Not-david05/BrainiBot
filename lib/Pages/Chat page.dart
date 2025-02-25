@@ -1,10 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:flutter/material.dart';
-
-
-
-
 class Chat_page extends StatefulWidget {
   @override
   _Chat_pageState createState() => _Chat_pageState();
@@ -94,7 +89,7 @@ class _Chat_pageState extends State<Chat_page> {
               decoration: InputDecoration(
                 hintText: "Escribe un mensaje...",
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: const Color.fromARGB(255, 243, 241, 241),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide.none,

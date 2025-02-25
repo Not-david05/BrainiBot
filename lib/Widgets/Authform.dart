@@ -5,6 +5,8 @@ class AuthForm extends StatelessWidget {
   final String buttonText;
   final VoidCallback onSubmit;
   final String? imagePath;
+  final bool showForgotPassword;
+  final bool showRememberMe;
 
   const AuthForm({
     Key? key,
@@ -12,10 +14,14 @@ class AuthForm extends StatelessWidget {
     required this.buttonText,
     required this.onSubmit,
     this.imagePath,
+    this.showForgotPassword = false,
+    this.showRememberMe = false,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    bool _rememberMe = false;
+
     return Card(
       elevation: 8,
       shape: RoundedRectangleBorder(
@@ -62,6 +68,26 @@ class AuthForm extends StatelessWidget {
                 ),
               ),
             ),
+             SizedBox(height: 16),
+            if (showRememberMe)
+              Row(
+                children: [
+                  StatefulBuilder(
+                    builder: (context, setState) => Checkbox(
+                      value: _rememberMe,
+                      onChanged: (value) {
+                        setState(() {
+                          _rememberMe = value!;
+                        });
+                      },
+                    ),
+                  ),
+                  Text(
+                    'Remember me',
+                    style: TextStyle(color: Colors.black),
+                  ),
+                ],
+              ),
             SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
@@ -76,25 +102,29 @@ class AuthForm extends StatelessWidget {
                 ),
                 child: Text(
                   buttonText,
-                  style: TextStyle(fontSize: 18,color: Colors.white),
+                  style: TextStyle(fontSize: 18, color: Colors.white),
                 ),
               ),
             ),
-            SizedBox(height: 16),
-            TextButton(
-              onPressed: () {
-                // Add your forgot password logic here
-              },
-              child: Text(
-                '¿Olvidaste tu contraseña?',
-                style: TextStyle(
-                  color: Colors.blue.shade800,
+            if (showForgotPassword) ...[
+              SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  // Add your forgot password logic here
+                },
+                child: Text(
+                  '¿Olvidaste tu contraseña?',
+                  style: TextStyle(
+                    color: Colors.blue.shade800,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
     );
   }
 }
+
+
