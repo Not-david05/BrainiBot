@@ -1,3 +1,4 @@
+import 'package:brainibot/Pages/Notifications%20settings.dart';
 import 'package:flutter/material.dart';
 import 'package:brainibot/Pages/TaskC.dart';
 import 'task_item.dart';
@@ -36,12 +37,18 @@ class TaskManagerScreen extends StatelessWidget {
                 ),
                 SizedBox(height: 20),
                 Text("Gestor de tareas", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                Text("Subtitle", style: TextStyle(fontSize: 16, color: Colors.grey[700])),
                 SizedBox(height: 20),
                 Row(
                   children: [
                     ElevatedButton(
-                      onPressed: () {},
+                      onPressed: () {
+                      Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => NotificationSettingsScreen(),
+                      ),
+                    );
+                      },
                       child: Text("Gestionar notificaciones"),
                     ),
                     SizedBox(width: 10),
@@ -81,7 +88,7 @@ class TaskManagerScreen extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () {},
-            child: Text("View 231 Tareas"),
+            child: Text("View {numero} Tareas"),
           ),
           SizedBox(height: 10),
           FloatingActionButton(
