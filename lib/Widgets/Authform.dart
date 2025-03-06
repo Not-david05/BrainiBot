@@ -7,6 +7,10 @@ class AuthForm extends StatelessWidget {
   final String? imagePath;
   final bool showForgotPassword;
   final bool showRememberMe;
+  final bool showConfirmPassword;
+  final TextEditingController? confirmPasswordController;
+  final TextEditingController? emailController; // Nuevo controlador para el email
+  final TextEditingController? passwordController; // Nuevo controlador para la contraseña
 
   const AuthForm({
     Key? key,
@@ -16,6 +20,10 @@ class AuthForm extends StatelessWidget {
     this.imagePath,
     this.showForgotPassword = false,
     this.showRememberMe = false,
+    this.showConfirmPassword = false,
+    this.confirmPasswordController,
+    this.emailController, // Inicializar el controlador de email
+    this.passwordController, // Inicializar el controlador de contraseña
   }) : super(key: key);
 
   @override
@@ -32,7 +40,7 @@ class AuthForm extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (imagePath != null) // Display image if provided
+            if (imagePath != null) // Mostrar imagen si se proporciona
               Image.asset(
                 imagePath!,
                 height: 400,
@@ -49,9 +57,10 @@ class AuthForm extends StatelessWidget {
             ),
             SizedBox(height: 24),
             TextField(
+              controller: emailController, // Asignar el controlador de email
               decoration: InputDecoration(
-                labelText: 'Username',
-                prefixIcon: Icon(Icons.person),
+                labelText: 'Email', // Cambiado de 'Username' a 'Email'
+                prefixIcon: Icon(Icons.email), // Cambiado de 'person' a 'email'
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -59,6 +68,7 @@ class AuthForm extends StatelessWidget {
             ),
             SizedBox(height: 16),
             TextField(
+              controller: passwordController, // Asignar el controlador de contraseña
               obscureText: true,
               decoration: InputDecoration(
                 labelText: 'Password',
@@ -68,7 +78,21 @@ class AuthForm extends StatelessWidget {
                 ),
               ),
             ),
-             SizedBox(height: 16),
+            if (showConfirmPassword) ...[
+              SizedBox(height: 16),
+              TextField(
+                controller: confirmPasswordController,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: 'Confirm Password',
+                  prefixIcon: Icon(Icons.lock_outline),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
+            SizedBox(height: 16),
             if (showRememberMe)
               Row(
                 children: [
@@ -110,7 +134,7 @@ class AuthForm extends StatelessWidget {
               SizedBox(height: 16),
               TextButton(
                 onPressed: () {
-                  // Add your forgot password logic here
+                  // Lógica para olvidar la contraseña
                 },
                 child: Text(
                   '¿Olvidaste tu contraseña?',
@@ -126,5 +150,3 @@ class AuthForm extends StatelessWidget {
     );
   }
 }
-
-
