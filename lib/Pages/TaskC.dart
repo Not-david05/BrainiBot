@@ -1,6 +1,9 @@
 import 'package:brainibot/Pages/Starter.dart';
+import 'package:brainibot/Widgets/Time_builder.dart';
+import 'package:brainibot/auth/servei_auth.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class TaskC extends StatefulWidget {
   @override
@@ -9,16 +12,18 @@ class TaskC extends StatefulWidget {
 
 class _TaskCState extends State<TaskC> {
   DateTime? _selectedDate;
+  TimeOfDay? _selectedTime;
   String? _selectedCategory;
   String? _selectedPriority;
   String? _customCategory;
+  String? _taskTitle;
 
   final List<String> _categories = [
     'Estudios', 'Diaria', 'Recados', 'Trabajo', 'Personal', 'Otros'
   ];
 
   final List<String> _priorities = [
-    'Urgente', 'Alta', 'Media', 'Baja', 'Opcional'
+    'Urgente 5★', 'Alta 4★', 'Media 3★', 'Baja 2★', 'Opcional 1★'
   ];
 
   final PageController _pageController = PageController();
@@ -69,6 +74,44 @@ class _TaskCState extends State<TaskC> {
     }
   }
 
+  Future<void> _selectTime(BuildContext context) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime ?? TimeOfDay.now(),
+    );
+    if (picked != null && picked != _selectedTime) {
+      setState(() {
+        _selectedTime = picked;
+      });
+    }
+  }
+
+  Future<void> _saveTask() async {
+    if (_taskTitle != null && _selectedDate != null && _selectedCategory != null && _selectedPriority != null) {
+      String? result = await ServeiAuth().saveTask(
+        title: _taskTitle!,
+        category: _selectedCategory!,
+        priority: _selectedPriority!,
+        date: _selectedDate!,
+        time: _selectedTime,
+      );
+
+      if (result == null) {
+        // Si no hay error, navega a la página de inicio
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => Starter()),
+        );
+      } else {
+        // Si hubo un error, muestra un mensaje
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result)));
+      }
+    } else {
+      // Si falta información
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Por favor complete todos los campos.")));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -108,7 +151,9 @@ class _TaskCState extends State<TaskC> {
               ),
             ),
             SizedBox(height: 20),
-            _buildTextField("Título de la tarea", Icons.title),
+            _buildTextField("Título de la tarea", Icons.title, (value) {
+              _taskTitle = value;
+            }),
             SizedBox(height: 10),
             _buildDropdown("Categoría", _categories, _selectedCategory, (String? newValue) {
               setState(() {
@@ -116,7 +161,9 @@ class _TaskCState extends State<TaskC> {
                 if (newValue != 'Otros') _customCategory = null;
               });
             }),
-            if (_selectedCategory == 'Otros') _buildTextField("Especifica la categoría", Icons.category),
+            if (_selectedCategory == 'Otros') _buildTextField("Especifica la categoría", Icons.category, (value) {
+              _customCategory = value;
+            }),
             SizedBox(height: 10),
             _buildDropdown("Prioridad", _priorities, _selectedPriority, (String? newValue) {
               setState(() {
@@ -126,6 +173,10 @@ class _TaskCState extends State<TaskC> {
             SizedBox(height: 20),
             _buildDateSelector(context),
             SizedBox(height: 20),
+            _buildTimeSelector(context),
+            SizedBox(height: 20),
+            TimeBuilder(context),
+            SizedBox(height: 20),
             _buildSubmitButton(),
           ],
         ),
@@ -133,9 +184,10 @@ class _TaskCState extends State<TaskC> {
     );
   }
 
-  Widget _buildTextField(String label, IconData icon) {
+  Widget _buildTextField(String label, IconData icon, Function(String) onChanged) {
     return TextField(
       style: TextStyle(color: Colors.white),
+      onChanged: onChanged,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: TextStyle(color: Colors.white70),
@@ -204,9 +256,36 @@ class _TaskCState extends State<TaskC> {
     );
   }
 
+  Widget _buildTimeSelector(BuildContext context) {
+    return InkWell(
+      onTap: () => _selectTime(context),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: "Hora de la tarea (opcional)",
+          labelStyle: TextStyle(color: Colors.white70),
+          border: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+          filled: true,
+          fillColor: Colors.blueGrey[800],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              _selectedTime == null
+                  ? 'Selecciona una hora'
+                  : _selectedTime!.format(context),
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
+            Icon(Icons.access_time, color: Colors.cyanAccent),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSubmitButton() {
     return ElevatedButton(
-      onPressed: () {},
+      onPressed: _saveTask, // Llamamos a la función que guarda la tarea
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.cyanAccent,
         padding: EdgeInsets.symmetric(horizontal: 50, vertical: 15),

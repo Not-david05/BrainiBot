@@ -2,9 +2,38 @@ import 'package:brainibot/Pages/Sign%20up.dart';
 import 'package:brainibot/Pages/Starter.dart';
 import 'package:brainibot/Pages/User%20page.dart';
 import 'package:brainibot/Widgets/Authform.dart';
+import 'package:brainibot/auth/servei_auth.dart';
 import 'package:flutter/material.dart';
 
-class LogInPage extends StatelessWidget {
+class LogInPage extends StatefulWidget {
+  final Function()? ferClic;
+
+  const LogInPage({super.key, required this.ferClic});
+
+  @override
+  State<LogInPage> createState() => _LogInPageState();
+}
+
+class _LogInPageState extends State<LogInPage> {
+  final TextEditingController tecEmail = TextEditingController();
+  final TextEditingController tecPassword = TextEditingController();
+
+  Future<void> ferLogin(BuildContext context, String email, String password) async {
+    String? error = await ServeiAuth().loginAmbEmaiIPassword(email, password);
+    if (error != null) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: Color.fromARGB(255, 250, 183, 159),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          title: const Text("Error"),
+          content: Text("Email i/o password incorrectes."),
+        ),
+      );
+    }
+    // No necesitas Navigator.pushReplacement aquí, PortalAuth manejará la navegación.
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -25,16 +54,11 @@ class LogInPage extends StatelessWidget {
                   AuthForm(
                     title: 'Log In',
                     buttonText: 'Log In',
-                    onSubmit: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => User_page(),
-                        ),
-                      );
-                    },
+                    onSubmit: () => ferLogin(context, tecEmail.text, tecPassword.text),
                     imagePath: "lib/images/brainibot.png",
-                    showForgotPassword: true, // Mostrar solo en LogInPage
+                    showForgotPassword: true,
+                    emailController: tecEmail,
+                    passwordController: tecPassword,
                   ),
                   SizedBox(height: 16),
                   Row(
@@ -48,16 +72,9 @@ class LogInPage extends StatelessWidget {
                         ),
                       ),
                       GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => SignInPage(),
-                            ),
-                          );
-                        },
+                        onTap: widget.ferClic,
                         child: Text(
-                          'Sign In',
+                          'Sign Up',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,
