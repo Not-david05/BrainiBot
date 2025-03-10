@@ -1,6 +1,9 @@
+import 'package:brainibot/Pages/Starter.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TaskDetailScreen extends StatefulWidget {
+  final String taskId;
   final String title;
   final String category;
   final String priority;
@@ -8,6 +11,7 @@ class TaskDetailScreen extends StatefulWidget {
   final DateTime dueDate;
 
   TaskDetailScreen({
+    required this.taskId,
     required this.title,
     required this.category,
     required this.priority,
@@ -25,6 +29,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   late TextEditingController _priorityController;
   late TextEditingController _starsController;
   late TextEditingController _dateController;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   @override
   void initState() {
@@ -48,7 +53,25 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     super.dispose();
   }
 
-  void _editField(BuildContext context, String label, TextEditingController controller) {
+ Future<void> _updateTask(String field, String newValue) async {
+  try {
+    // Fetch the document from the "Tareas" collection
+    var doc = await _firestore.collection('Tareas').doc(widget.taskId).get();
+    
+    if (doc.exists) {
+      print("Document exists, updating field: $field to $newValue");
+      await _firestore.collection('Tareas').doc(widget.taskId).update({field: newValue});
+      print("Task updated successfully!");
+    } else {
+      print("Document with ID ${widget.taskId} does not exist in 'Tareas' collection.");
+    }
+  } catch (error) {
+    print("Error fetching or updating document: $error");
+  }
+}
+
+
+  void _editField(BuildContext context, String label, TextEditingController controller, String field) {
     showDialog(
       context: context,
       builder: (context) {
@@ -62,6 +85,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             TextButton(onPressed: () => Navigator.pop(context), child: Text("Cancelar")),
             TextButton(
               onPressed: () {
+                _updateTask(field, controller.text);
                 setState(() {});
                 Navigator.pop(context);
               },
@@ -72,6 +96,48 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       },
     );
   }
+
+  void _deleteTask() {
+  showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: Text("¿Estás seguro de que deseas eliminar esta tarea?"),
+        content: Text("Esta acción no se puede deshacer."),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Cierra el diálogo
+            },
+            child: Text("Cancelar"),
+          ),
+          TextButton(
+            onPressed: () async {
+              try {
+                // Borra la tarea de Firestore
+                await _firestore.collection('Tareas').doc(widget.taskId).delete();
+                
+                // Salir de la pantalla de detalles de la tarea (volvemos atrás)
+                Navigator.pop(context); // Cierra el diálogo
+                Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => Starter(),
+                          ),
+                        );// Vuelve atrás a la lista de tareas
+                print("Tarea eliminada exitosamente!");
+              } catch (error) {
+                print("Error al eliminar la tarea: $error");
+              }
+            },
+            child: Text("Sí, eliminar", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +151,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             padding: const EdgeInsets.all(16.0),
             child: IconButton(
               icon: Icon(Icons.delete, color: Colors.red, size: 30),
-              onPressed: () {}, // Implementar lógica de eliminación
+              onPressed: _deleteTask,
             ),
           ),
         ],
@@ -104,17 +170,16 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               child: Center(child: Icon(Icons.image, size: 100, color: Colors.grey[600])),
             ),
             SizedBox(height: 20),
-            
             Card(
               elevation: 3,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               child: Column(
                 children: [
-                  _buildDetailTile(Icons.title, "Título", _titleController),
-                  _buildDetailTile(Icons.category, "Categoría", _categoryController),
-                  _buildDetailTile(Icons.flag, "Prioridad", _priorityController),
-                  _buildDetailTile(Icons.star, "Estrellas", _starsController),
-                  _buildDetailTile(Icons.calendar_today, "Fecha de vencimiento", _dateController),
+                  _buildDetailTile(Icons.title, "Título", _titleController, "title"),
+                  _buildDetailTile(Icons.category, "Categoría", _categoryController, "category"),
+                  _buildDetailTile(Icons.flag, "Prioridad", _priorityController, "priority"),
+                  _buildDetailTile(Icons.star, "Estrellas", _starsController, "stars"),
+                  _buildDetailTile(Icons.calendar_today, "Fecha de vencimiento", _dateController, "dueDate"),
                 ],
               ),
             ),
@@ -124,14 +189,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
-  Widget _buildDetailTile(IconData icon, String label, TextEditingController controller) {
+  Widget _buildDetailTile(IconData icon, String label, TextEditingController controller, String field) {
     return ListTile(
       leading: Icon(icon, color: Colors.purple),
       title: Text(label, style: TextStyle(fontWeight: FontWeight.bold)),
       subtitle: Text(controller.text, style: TextStyle(fontSize: 16)),
       trailing: IconButton(
         icon: Icon(Icons.edit, color: Colors.blue),
-        onPressed: () => _editField(context, label, controller),
+        onPressed: () => _editField(context, label, controller, field),
       ),
     );
   }

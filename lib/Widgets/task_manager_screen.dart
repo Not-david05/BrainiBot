@@ -2,8 +2,13 @@ import 'package:brainibot/Pages/Notifications%20settings.dart';
 import 'package:flutter/material.dart';
 import 'package:brainibot/Pages/TaskC.dart';
 import 'task_item.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class TaskManagerScreen extends StatelessWidget {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -42,12 +47,12 @@ class TaskManagerScreen extends StatelessWidget {
                   children: [
                     ElevatedButton(
                       onPressed: () {
-                      Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => NotificationSettingsScreen(),
-                      ),
-                    );
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => NotificationSettingsScreen(),
+                          ),
+                        );
                       },
                       child: Text("Gestionar notificaciones"),
                     ),
@@ -80,9 +85,34 @@ class TaskManagerScreen extends StatelessWidget {
                   onPressed: (index) {},
                 ),
                 SizedBox(height: 20),
-                TaskItem(title: "Tarea 1", category: "Estudios", priority: "Alta", stars: 5, dueDate: DateTime.now(),),
-                TaskItem(title: "Tarea 2", category: "Diaria", priority: "Baja", stars: 2, dueDate: DateTime.now(),),
-                TaskItem(title: "Tarea 3", category: "Recados", priority: "Media-Alta", stars: 4, dueDate: DateTime.now(),),
+                StreamBuilder(
+                  stream: _firestore
+                      .collection("Tareas")
+                      .where("uid", isEqualTo: _auth.currentUser?.uid) // Filtrar por usuario actual
+                      .snapshots(),
+                  builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(child: CircularProgressIndicator());
+                    }
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return Center(child: Text("No hay tareas disponibles"));
+                    }
+
+                    final tasks = snapshot.data!.docs;
+                    return Column(
+                      children: tasks.map((task) {
+                        return TaskItem(
+                          taskId: task.id, // Aquí usamos el ID del documento en Firestore
+                          title: task["title"],
+                          category: task["category"],
+                          priority: task["priority"],
+                          stars: _getPriorityStars(task["priority"]),
+                          dueDate: (task["date"] as Timestamp).toDate(),
+                        );
+                      }).toList().cast<Widget>(), // Convertimos a lista de Widgets
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -93,7 +123,7 @@ class TaskManagerScreen extends StatelessWidget {
           SizedBox(height: 10),
           FloatingActionButton(
             onPressed: () {
-              Navigator.pushReplacement(
+              Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => TaskC(),
@@ -106,5 +136,22 @@ class TaskManagerScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  int _getPriorityStars(String priority) {
+    switch (priority) {
+      case "Urgente 5★":
+        return 5;
+      case "Alta 4★":
+        return 4;
+      case "Media 3★":
+        return 3;
+      case "Baja 2★":
+        return 2;
+      case "Opcional 1★":
+        return 1;
+      default:
+        return 0;
+    }
   }
 }
