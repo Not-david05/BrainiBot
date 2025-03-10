@@ -1,37 +1,32 @@
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class ServeiAuth {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  //Usuari actual
+
+  // Obtener el usuario actualmente autenticado
   User? getUsuariActual() {
     return _auth.currentUser;
   }
 
-  //Fer logout
+  // Hacer logout
   Future<void> ferLogout() async {
     return await _auth.signOut();
   }
 
-  //Fer login
-  Future<String?> loginAmbEmaiIPassword(String email, password) async {
+  // Hacer login
+  Future<String?> loginAmbEmaiIPassword(String email, String password) async {
     try {
       UserCredential credencialUsuari = await _auth.signInWithEmailAndPassword(
           email: email, password: password);
-      // comprobem si l'usuari ja esta donat d'alta a firestore (a FirebaseAuth, si hem arribat
-      //aqui ja sabem que hi es). Si no estigues donat d'alta el donem
-      // d'alta (a firestore).Fet per si de cas es dibes d'alta un usuari
-      // directament des de la consola de firebase i no a traves de la nostra app
+      // Verificar si el usuario ya está registrado en Firestore
       final QuerySnapshot querySnapshot = await _firestore
           .collection("Usuaris")
           .where("Email", isEqualTo: email)
           .get();
-      _firestore.collection("Usuaris").doc(credencialUsuari.user!.uid).set({
-        "uid": credencialUsuari.user!.uid,
-        "email": email,
-        "nom": "",
-      });
+
       if (querySnapshot.docs.isEmpty) {
         _firestore.collection("Usuaris").doc(credencialUsuari.user!.uid).set({
           "uid": credencialUsuari.user!.uid,
@@ -44,45 +39,82 @@ class ServeiAuth {
     }
   }
 
-  //Fer registre
- Future<String?> resgitreAmbEmaiIPassword(String email, String password) async {
-  try {
-    UserCredential credencialUsuari = await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+  // Hacer registro
+  Future<String?> resgitreAmbEmaiIPassword(String email, String password) async {
+    try {
+      UserCredential credencialUsuari = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-    // Verificar si el usuario no es nulo
-    if (credencialUsuari.user != null) {
-      print("Usuari creat amb èxit: ${credencialUsuari.user!.uid}");
-      await _firestore.collection("Usuaris").doc(credencialUsuari.user!.uid).set({
-        "uid": credencialUsuari.user!.uid,
-        "email": email,
-        "nom": "",
-      });
-    } else {
-      print("Error: No s'ha pogut obtenir l'usuari després del registre.");
-      return "Error: No s'ha pogut obtenir l'usuari després del registre.";
-    }
+      // Verificar si el usuario no es nulo
+      if (credencialUsuari.user != null) {
+        print("Usuario creado con éxito: ${credencialUsuari.user!.uid}");
+        await _firestore.collection("Usuaris").doc(credencialUsuari.user!.uid).set({
+          "uid": credencialUsuari.user!.uid,
+          "email": email,
+          "nom": "",
+        });
+      } else {
+        return "Error: No se pudo obtener el usuario después del registro.";
+      }
 
-    return null;
-  } on FirebaseAuthException catch (e) {
-    print("Error de FirebaseAuth: ${e.code} - ${e.message}");
-    switch (e.code) {
-      case "email-already-in-use":
-        return "Ja hi ha un usuari amb aquest email.";
-      case "invalid-email":
-        return "Email no vàlid.";
-      case "operation-not-allowed":
-        return "Email i/o password no habilitats.";
-      case "weak-password":
-        return "Cal un password més robust.";
-      default:
-        return "Error ${e.message}";
+      return null;
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case "email-already-in-use":
+          return "Ya existe un usuario con este correo electrónico.";
+        case "invalid-email":
+          return "Correo electrónico inválido.";
+        case "operation-not-allowed":
+          return "La operación no está permitida.";
+        case "weak-password":
+          return "La contraseña debe ser más robusta.";
+        default:
+          return "Error: ${e.message}";
+      }
+    } catch (e) {
+      return "Error inesperado: $e";
     }
-  } catch (e) {
-    print("Error inesperat: $e");
-    return "Error inesperat: $e";
   }
-}
+
+  // Guardar tarea asociada al usuario actual
+  Future<String?> saveTask({
+    required String title,
+    required String category,
+    required String priority,
+    required DateTime date,
+    TimeOfDay? time,
+  }) async {
+    try {
+      // Obtenemos el usuario actual
+      User? currentUser = getUsuariActual();
+
+      if (currentUser == null) {
+        return "No hay usuario autenticado.";
+      }
+
+      // Convertir la hora en formato de 24 horas si se ha seleccionado una
+      String? timeString;
+      if (time != null) {
+        timeString = '${time.hour}:${time.minute}';
+      }
+
+      // Crear la tarea en Firestore
+      await _firestore.collection("Tareas").add({
+        "uid": currentUser.uid,  // Asociamos la tarea al UID del usuario
+        "title": title,
+        "category": category,
+        "priority": priority,
+        "date": date,
+        "time": timeString ?? "",  // La hora es opcional
+        "createdAt": FieldValue.serverTimestamp(),
+      });
+
+      return null;  // Si la tarea se guarda correctamente, retornamos null
+    } catch (e) {
+      print("Error al guardar tarea: $e");
+      return "Error al guardar la tarea.";
+    }
+  }
 }
