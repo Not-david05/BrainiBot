@@ -1,9 +1,9 @@
 import 'package:brainibot/Pages/Chat%20page.dart';
 import 'package:brainibot/Pages/Starter.dart';
 import 'package:brainibot/Pages/TaskC.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Importar FirebaseAuth
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
-
 
 class User_page extends StatelessWidget {
   @override
@@ -25,10 +25,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
 
+  // Método para cerrar sesión
+  Future<void> _signOut(BuildContext context) async {
+    try {
+      await FirebaseAuth.instance.signOut(); // Cerrar sesión en Firebase
+      // No es necesario navegar manualmente, el StreamBuilder en PortalAuth lo manejará
+    } catch (e) {
+      print("Error al cerrar sesión: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Color(0xFFF4EAF8),
+      appBar: AppBar(
+        title: Text("BrainiBot"), // Título del AppBar
+        backgroundColor: Colors.purple.shade200, // Color de fondo del AppBar
+        actions: [
+          // Botón para cerrar sesión
+          IconButton(
+            icon: Icon(Icons.logout), // Icono de logout
+            onPressed: () => _signOut(context), // Llamar al método de cierre de sesión
+          ),
+        ],
+      ),
       body: Center(
         child: Card(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
