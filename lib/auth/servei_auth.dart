@@ -21,7 +21,7 @@ class ServeiAuth {
     try {
       UserCredential credencialUsuari = await _auth.signInWithEmailAndPassword(
           email: email, password: password);
-      // Verificar si el usuario ya está registrado en Firestore
+      
       final QuerySnapshot querySnapshot = await _firestore
           .collection("Usuaris")
           .where("Email", isEqualTo: email)
@@ -47,7 +47,6 @@ class ServeiAuth {
         password: password,
       );
 
-      // Verificar si el usuario no es nulo
       if (credencialUsuari.user != null) {
         print("Usuario creado con éxito: ${credencialUsuari.user!.uid}");
         await _firestore.collection("Usuaris").doc(credencialUsuari.user!.uid).set({
@@ -78,7 +77,7 @@ class ServeiAuth {
     }
   }
 
-  // Guardar tarea asociada al usuario actual
+  // Guardar tarea asociada al usuario actual dentro de TareasUsers
   Future<String?> saveTask({
     required String title,
     required String category,
@@ -87,34 +86,36 @@ class ServeiAuth {
     TimeOfDay? time,
   }) async {
     try {
-      // Obtenemos el usuario actual
       User? currentUser = getUsuariActual();
 
       if (currentUser == null) {
         return "No hay usuario autenticado.";
       }
 
-      // Convertir la hora en formato de 24 horas si se ha seleccionado una
       String? timeString;
       if (time != null) {
         timeString = '${time.hour}:${time.minute}';
       }
 
-      // Crear la tarea en Firestore
-      await _firestore.collection("Tareas").add({
-        "uid": currentUser.uid,  // Asociamos la tarea al UID del usuario
+      // Guardar la tarea dentro de la subcolección del usuario
+      await _firestore
+          .collection("TareasUsers")
+          .doc(currentUser.uid)
+          .collection("Tareas")
+          .add({
         "title": title,
         "category": category,
         "priority": priority,
         "date": date,
-        "time": timeString ?? "",  // La hora es opcional
+        "time": timeString ?? "",
         "createdAt": FieldValue.serverTimestamp(),
       });
 
-      return null;  // Si la tarea se guarda correctamente, retornamos null
+      return null;
     } catch (e) {
       print("Error al guardar tarea: $e");
       return "Error al guardar la tarea.";
     }
   }
 }
+

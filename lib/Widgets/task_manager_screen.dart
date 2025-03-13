@@ -87,9 +87,10 @@ class TaskManagerScreen extends StatelessWidget {
                 SizedBox(height: 20),
                 StreamBuilder(
                   stream: _firestore
-                      .collection("Tareas")
-                      .where("uid", isEqualTo: _auth.currentUser?.uid) // Filtrar por usuario actual
-                      .snapshots(),
+                  .collection("TareasUsers")
+                  .doc(_auth.currentUser?.uid)
+                  .collection("Tareas") // Acceder a la subcolección de tareas del usuario actual
+                  .snapshots(),
                   builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return Center(child: CircularProgressIndicator());
