@@ -1,4 +1,5 @@
 import 'package:brainibot/Pages/Starter.dart';
+import 'package:brainibot/auth/servei_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -53,20 +54,27 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     super.dispose();
   }
 
- Future<void> _updateTask(String field, String newValue) async {
+Future<void> _updateTask(String field, String newValue) async {
   try {
-    // Fetch the document from the "Tareas" collection
-    var doc = await _firestore.collection('Tareas').doc(widget.taskId).get();
-    
-    if (doc.exists) {
-      print("Document exists, updating field: $field to $newValue");
-      await _firestore.collection('Tareas').doc(widget.taskId).update({field: newValue});
-      print("Task updated successfully!");
-    } else {
-      print("Document with ID ${widget.taskId} does not exist in 'Tareas' collection.");
+    // Obtener el usuario actual
+    var currentUser = ServeiAuth().getUsuariActual();
+
+    if (currentUser == null) {
+      print("No hay usuario autenticado.");
+      return;
     }
+
+    // Referencia al documento del usuario en la colección "TareasUsers"
+    var userDoc = _firestore.collection("TareasUsers").doc(currentUser.uid);
+
+    // Actualizar el campo dentro de la subcolección "Tareas"
+    await userDoc.collection("Tareas").doc(widget.taskId).update({
+      field: newValue,
+    });
+
+    print("Campo actualizado exitosamente: $field -> $newValue");
   } catch (error) {
-    print("Error fetching or updating document: $error");
+    print("Error al actualizar la tarea: $error");
   }
 }
 
