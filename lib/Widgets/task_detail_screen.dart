@@ -105,7 +105,7 @@ Future<void> _updateTask(String field, String newValue) async {
     );
   }
 
-  void _deleteTask() {
+ void _deleteTask() {
   showDialog(
     context: context,
     builder: (context) {
@@ -122,20 +122,44 @@ Future<void> _updateTask(String field, String newValue) async {
           TextButton(
             onPressed: () async {
               try {
-                // Borra la tarea de Firestore
-                await _firestore.collection('Tareas').doc(widget.taskId).delete();
-                
-                // Salir de la pantalla de detalles de la tarea (volvemos atrás)
-                Navigator.pop(context); // Cierra el diálogo
-                Navigator.push(
+                // Obtener el usuario actual
+                var currentUser = ServeiAuth().getUsuariActual();
+
+                if (currentUser == null) {
+                  print("No hay usuario autenticado.");
+                  return;
+                }
+
+                // Referencia al documento de la tarea en la subcolección "Tareas" del usuario
+                await _firestore
+                    .collection("TareasUsers")
+                    .doc(currentUser.uid)
+                    .collection("Tareas")
+                    .doc(widget.taskId)
+                    .delete();
+
+                // Cerrar el diálogo
+                Navigator.pop(context);
+
+                // Volver a la pantalla anterior (lista de tareas)
+                 Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => Starter(),
                           ),
-                        );// Vuelve atrás a la lista de tareas
+                        );// Vuelve atrás a la lista de tare
+
                 print("Tarea eliminada exitosamente!");
               } catch (error) {
                 print("Error al eliminar la tarea: $error");
+
+                // Mostrar un mensaje de error al usuario (opcional)
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text("Error al eliminar la tarea: $error"),
+                    backgroundColor: Colors.red,
+                  ),
+                );
               }
             },
             child: Text("Sí, eliminar", style: TextStyle(color: Colors.red)),
