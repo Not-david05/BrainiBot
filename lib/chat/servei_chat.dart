@@ -1,34 +1,53 @@
-import 'package:brainibot/chat/missatge.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:brainibot/auth/servei_auth.dart'; // Import the ServeiAuth class
+import 'package:brainibot/auth/servei_auth.dart';
 
 class ServeiChat {
-  final ServeiAuth _serveiAuth = ServeiAuth(); // Use ServeiAuth for authentication
+  final ServeiAuth _serveiAuth = ServeiAuth();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Send a message (private to the user)
-  Future<void> enviarMissatge(String missatge) async {
+  /// Crea un nuevo chat. Si [chatName] es nulo o vacío, se asigna el nombre "chat X"
+  Future<String> createChat(String? chatName) async {
+    String idUsuariActual = _serveiAuth.getUsuariActual()!.uid;
+    CollectionReference chatsCollection = _firestore
+        .collection("UsersChat")
+        .doc(idUsuariActual)
+        .collection("Chats");
+
+    // Contar los chats existentes para asignar el nombre por defecto
+    QuerySnapshot querySnapshot = await chatsCollection.get();
+    int chatCount = querySnapshot.docs.length;
+    String defaultChatName = "chat ${chatCount + 1}";
+    String finalChatName =
+        (chatName == null || chatName.trim().isEmpty) ? defaultChatName : chatName.trim();
+
+    DocumentReference chatDocRef = await chatsCollection.add({
+      "name": finalChatName,
+      "createdAt": Timestamp.now(),
+    });
+    return chatDocRef.id;
+  }
+
+  /// Envía un mensaje a un chat específico.
+  Future<void> enviarMissatge(String chatId, String missatge) async {
     try {
-      // Get the current user's ID and email from ServeiAuth
       String idUsuariActual = _serveiAuth.getUsuariActual()!.uid;
       String emailUsuariActual = _serveiAuth.getUsuariActual()!.email!;
       Timestamp timestamp = Timestamp.now();
 
-      // Create a new message object
-      Missatge nouMissatge = Missatge(
-        idAutor: idUsuariActual,
-        emailAutor: emailUsuariActual,
-        idReceptor: "AI", // Indicate that the message is for the AI
-        missatge: missatge,
-        timestamp: timestamp,
-      );
+      Map<String, dynamic> nouMissatge = {
+        "idAutor": idUsuariActual,
+        "emailAutor": emailUsuariActual,
+        "missatge": missatge,
+        "timestamp": timestamp,
+      };
 
-      // Save the message in the user's private subcollection
       await _firestore
           .collection("UsersChat")
           .doc(idUsuariActual)
+          .collection("Chats")
+          .doc(chatId)
           .collection("Missatges")
-          .add(nouMissatge.retornaMapaMissatge());
+          .add(nouMissatge);
 
       print("Missatge enviat correctament!");
     } catch (error) {
@@ -36,17 +55,27 @@ class ServeiChat {
     }
   }
 
-  // Get messages (private to the user)
-  Stream<QuerySnapshot> getMissatges() {
-  // Get the current user's ID
-  String idUsuariActual = _serveiAuth.getUsuariActual()!.uid;
+  /// Retorna un stream con los mensajes del chat indicado.
+  Stream<QuerySnapshot> getMissatges(String chatId) {
+    String idUsuariActual = _serveiAuth.getUsuariActual()!.uid;
+    return _firestore
+        .collection("UsersChat")
+        .doc(idUsuariActual)
+        .collection("Chats")
+        .doc(chatId)
+        .collection("Missatges")
+        .orderBy("timestamp", descending: false)
+        .snapshots();
+  }
 
-  // Return a stream of messages from the user's private subcollection
-  return _firestore
-      .collection("UsersChat")
-      .doc(idUsuariActual)
-      .collection("Missatges")
-      .orderBy("timestamp", descending: false)
-      .snapshots();
-}
+  /// Retorna un stream con la lista de chats del usuario.
+  Stream<QuerySnapshot> getChats() {
+    String idUsuariActual = _serveiAuth.getUsuariActual()!.uid;
+    return _firestore
+        .collection("UsersChat")
+        .doc(idUsuariActual)
+        .collection("Chats")
+        .orderBy("createdAt", descending: false)
+        .snapshots();
+  }
 }
