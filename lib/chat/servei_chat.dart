@@ -78,4 +78,32 @@ class ServeiChat {
         .orderBy("createdAt", descending: false)
         .snapshots();
   }
+
+  /// Elimina un chat y todos sus mensajes de forma permanente.
+  Future<void> deleteChat(String chatId) async {
+    try {
+      String idUsuariActual = _serveiAuth.getUsuariActual()!.uid;
+      DocumentReference chatDoc = _firestore
+          .collection("UsersChat")
+          .doc(idUsuariActual)
+          .collection("Chats")
+          .doc(chatId);
+      
+      // Obtener todos los mensajes del chat
+      QuerySnapshot messagesSnapshot = await chatDoc.collection("Missatges").get();
+      WriteBatch batch = _firestore.batch();
+
+      // Borrar cada mensaje
+      for (DocumentSnapshot doc in messagesSnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      // Borrar el documento del chat
+      batch.delete(chatDoc);
+
+      await batch.commit();
+      print("Chat eliminado correctamente.");
+    } catch (e) {
+      print("Error al eliminar el chat: $e");
+    }
+  }
 }

@@ -50,7 +50,7 @@ class _ChatPageState extends State<ChatPage> {
       });
     }
 
-    // Se desplaza el scroll hacia abajo luego de renderizar la UI.
+    // Desplaza el scroll hacia abajo después de renderizar la UI.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 500), () {
         _ferScrollCapAvall();
@@ -129,35 +129,8 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  Widget _buildMessageInput() {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: Row(
-        children: [
-          IconButton(icon: Icon(Icons.add), onPressed: () {}),
-          IconButton(icon: Icon(Icons.emoji_emotions_outlined), onPressed: () {}),
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              decoration: InputDecoration(
-                hintText: "Escribe un mensaje...",
-                filled: true,
-                fillColor: const Color.fromARGB(255, 243, 241, 241),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
-            ),
-          ),
-          IconButton(icon: Icon(Icons.send), onPressed: _sendMessage),
-        ],
-      ),
-    );
-  }
-
-  /// Drawer que muestra la lista de chats y un botón fijo para crear uno nuevo.
+  /// Drawer que muestra la lista de chats, cada uno con un botón para eliminar y
+  /// un botón fijo al final para crear un nuevo chat.
   Widget _buildChatDrawer() {
     return Drawer(
       child: Column(
@@ -181,13 +154,22 @@ class _ChatPageState extends State<ChatPage> {
                 return ListView.builder(
                   itemCount: snapshot.data!.docs.length,
                   itemBuilder: (context, index) {
-                    var chatData =
-                        snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                    var chatData = snapshot.data!.docs[index].data() as Map<String, dynamic>;
                     String chatId = snapshot.data!.docs[index].id;
                     String chatName = chatData["name"];
                     return ListTile(
                       title: Text(chatName),
                       selected: chatId == currentChatId,
+                      trailing: IconButton(
+                        icon: Icon(Icons.close, color: Colors.red),
+                        onPressed: () async {
+                          await _serveiChat.deleteChat(chatId);
+                          // Si el chat eliminado era el actual, se reinicializa la selección.
+                          if (chatId == currentChatId) {
+                            _initializeChat();
+                          }
+                        },
+                      ),
                       onTap: () {
                         _switchChat(chatId, chatName);
                       },
@@ -204,6 +186,34 @@ class _ChatPageState extends State<ChatPage> {
               child: Text("Nuevo Chat"),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageInput() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Row(
+        children: [
+          IconButton(icon: Icon(Icons.add), onPressed: () {}),
+          IconButton(icon: Icon(Icons.emoji_emotions_outlined), onPressed: () {}),
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              decoration: InputDecoration(
+                hintText: "Escribe un mensaje...",
+                filled: true,
+                fillColor: const Color.fromARGB(255, 243, 241, 241),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+            ),
+          ),
+          IconButton(icon: Icon(Icons.send), onPressed: _sendMessage),
         ],
       ),
     );
@@ -260,16 +270,12 @@ class _ChatPageState extends State<ChatPage> {
                           bool isCurrentUser = missatgeData["idAutor"] == idUsuariActual;
 
                           return Align(
-                            alignment: isCurrentUser
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
+                            alignment: isCurrentUser ? Alignment.centerRight : Alignment.centerLeft,
                             child: Container(
                               margin: EdgeInsets.symmetric(vertical: 4),
                               padding: EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: isCurrentUser
-                                    ? Colors.purple.shade200
-                                    : Colors.grey.shade300,
+                                color: isCurrentUser ? Colors.purple.shade200 : Colors.grey.shade300,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
