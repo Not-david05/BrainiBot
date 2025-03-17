@@ -117,5 +117,75 @@ class ServeiAuth {
       return "Error al guardar la tarea.";
     }
   }
+
+  // Nuevo método para guardar la configuración de notificaciones
+  Future<String?> saveNotificationSettings({
+    required bool enableNotifications,
+    required bool filterByImportance,
+    required int minStarLevel,
+    required int notificationRepetitions,
+    required int daysBeforeDeadline,
+    required bool enableCountdownForFiveStars,
+    required bool notifyEveryDayBeforeDeadline,
+    required TimeOfDay notificationTime,
+  }) async {
+    try {
+      User? currentUser = getUsuariActual();
+      if (currentUser == null) {
+        return "No hay usuario autenticado.";
+      }
+
+      String formattedTime = '${notificationTime.hour}:${notificationTime.minute}';
+
+      // Se guarda la configuración en un documento único dentro de una subcolección "Notificaciones"
+      await _firestore
+          .collection("TareasUsers")
+          .doc(currentUser.uid)
+          .collection("Notificaciones")
+          .doc("Configuracion")
+          .set({
+        "enableNotifications": enableNotifications,
+        "filterByImportance": filterByImportance,
+        "minStarLevel": minStarLevel,
+        "notificationRepetitions": notificationRepetitions,
+        "daysBeforeDeadline": daysBeforeDeadline,
+        "enableCountdownForFiveStars": enableCountdownForFiveStars,
+        "notifyEveryDayBeforeDeadline": notifyEveryDayBeforeDeadline,
+        "notificationTime": formattedTime,
+        "updatedAt": FieldValue.serverTimestamp(),
+      });
+
+      return null;
+    } catch (e) {
+      print("Error al guardar la configuración de notificaciones: $e");
+      return "Error al guardar la configuración de notificaciones.";
+    }
+  }
+  // Método para obtener la configuración de notificaciones
+Future<Map<String, dynamic>?> getNotificationSettings() async {
+  try {
+    User? currentUser = getUsuariActual();
+    if (currentUser == null) {
+      return null;
+    }
+    DocumentSnapshot snapshot = await _firestore
+        .collection("TareasUsers")
+        .doc(currentUser.uid)
+        .collection("Notificaciones")
+        .doc("Configuracion")
+        .get();
+
+    if (snapshot.exists) {
+      return snapshot.data() as Map<String, dynamic>;
+    } else {
+      return null;
+    }
+  } catch (e) {
+    print("Error al cargar la configuración de notificaciones: $e");
+    return null;
+  }
 }
+
+}
+
 
