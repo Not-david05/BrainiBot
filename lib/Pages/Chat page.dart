@@ -1,18 +1,51 @@
+import 'package:brainibot/auth/servei_auth.dart';
+import 'package:brainibot/chat/missatge.dart';
+import 'package:brainibot/chat/servei_chat.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class Chat_page extends StatefulWidget {
+class ChatPage extends StatefulWidget {
   @override
-  _Chat_pageState createState() => _Chat_pageState();
+  _ChatPageState createState() => _ChatPageState();
 }
 
-class _Chat_pageState extends State<Chat_page> {
+class _ChatPageState extends State<ChatPage> {
   final TextEditingController _controller = TextEditingController();
+  final ServeiChat _serveiChat = ServeiChat();
+  final ServeiAuth _serveiAuth = ServeiAuth();
+  late Stream<QuerySnapshot> _missatgesStream;
+  final ScrollController _scrollController = ScrollController();
 
-  void _sendMessage() {
+  @override
+  void initState() {
+    super.initState();
+    _missatgesStream = _serveiChat.getMissatges();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _ferScrollCapAvall();
+      });
+    });
+  }
+
+  void _ferScrollCapAvall() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent + 40,
+        duration: const Duration(seconds: 1),
+        curve: Curves.fastOutSlowIn,
+      );
+    }
+  }
+
+  void _sendMessage() async {
     String message = _controller.text.trim();
     if (message.isNotEmpty) {
-      print("Mensaje enviado: $message");
+      await _serveiChat.enviarMissatge(message);
       _controller.clear();
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _ferScrollCapAvall();
+      });
     }
   }
 
@@ -34,40 +67,49 @@ class _Chat_pageState extends State<Chat_page> {
       body: Column(
         children: [
           Expanded(
-            child: ListView(
-              padding: EdgeInsets.all(16.0),
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: EdgeInsets.all(12),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.image, color: Colors.grey.shade600),
-                        SizedBox(width: 8),
-                        Text("...", style: TextStyle(color: Colors.grey.shade800)),
-                      ],
-                    ),
-                  ),
-                ),
-                SizedBox(height: 16),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.purple.shade200,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: EdgeInsets.all(12),
-                    child: Text("...", style: TextStyle(color: Colors.white)),
-                  ),
-                ),
-              ],
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _missatgesStream,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text("Error: ${snapshot.error}"));
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(child: Text("No hay mensajes aún."));
+                }
+
+                String idUsuariActual = _serveiAuth.getUsuariActual()!.uid;
+
+                return ListView.builder(
+                  controller: _scrollController,
+                  padding: EdgeInsets.all(16.0),
+                  itemCount: snapshot.data!.docs.length,
+                  itemBuilder: (context, index) {
+                    var missatgeData = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                    bool isCurrentUser = missatgeData["idAutor"] == idUsuariActual;
+
+                    return Align(
+                      alignment: isCurrentUser ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        margin: EdgeInsets.symmetric(vertical: 4),
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isCurrentUser ? Colors.purple.shade200 : Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          missatgeData["missatge"],
+                          style: TextStyle(
+                            color: isCurrentUser ? Colors.white : Colors.black,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ),
           _buildMessageInput(),

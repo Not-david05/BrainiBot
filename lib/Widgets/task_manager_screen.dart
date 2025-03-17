@@ -1,4 +1,5 @@
 import 'package:brainibot/Pages/Notifications%20settings.dart';
+import 'package:brainibot/Pages/User%20page.dart';
 import 'package:flutter/material.dart';
 import 'package:brainibot/Pages/TaskC.dart';
 import 'task_item.dart';
@@ -34,7 +35,12 @@ class TaskManagerScreen extends StatelessWidget {
                   children: [
                     IconButton(
                       icon: Icon(Icons.arrow_back),
-                      onPressed: () {},
+                      onPressed: () =>Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => User_page(),
+                          ),
+                        )// Vuelve,
                     ),
                     Spacer(),
                     Icon(Icons.more_vert),

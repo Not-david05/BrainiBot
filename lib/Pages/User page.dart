@@ -117,7 +117,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => Chat_page(),
+                              builder: (context) => ChatPage(),
                             ),
                           );
                       },
