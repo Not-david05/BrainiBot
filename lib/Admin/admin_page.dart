@@ -1,6 +1,13 @@
+import 'package:brainibot/Firebase/firebase_options.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 
-void main() {
+void main() async{
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options:DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const AdminPage());
 }
 
@@ -10,47 +17,46 @@ class AdminPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Ejemplo UI',
+      title: 'Lista de Usuarios',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.pink,
       ),
-      home: const MyHomePage(),
+      home: const UserListPage(),
     );
   }
 }
 
-class MyHomePage extends StatelessWidget {
-  const MyHomePage({Key? key}) : super(key: key);
+class UserListPage extends StatelessWidget {
+  const UserListPage({Key? key}) : super(key: key);
+
+  Stream<QuerySnapshot> getUsersStream() {
+    return FirebaseFirestore.instance.collection("Usuaris").snapshots();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Tamaño de la pantalla
-    final size = MediaQuery.of(context).size;
-
     return Scaffold(
       body: Row(
         children: [
           // SIDEBAR (menú lateral)
           Container(
             width: 70,
-            color: Colors.pink[100], // Ajusta el color de fondo
+            color: Colors.pink[100],
             child: Column(
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 const SizedBox(height: 40),
-                // Botón "+"
                 ElevatedButton(
                   onPressed: () {},
                   style: ElevatedButton.styleFrom(
-                    overlayColor: Colors.pink, // color del botón
+                    overlayColor: Colors.pink,
                     shape: const CircleBorder(),
                     padding: const EdgeInsets.all(12),
                   ),
                   child: const Icon(Icons.add, color: Colors.white),
                 ),
                 const SizedBox(height: 30),
-                // Ítems del menú
                 IconButton(
                   onPressed: () {},
                   icon: const Icon(Icons.people),
@@ -77,7 +83,7 @@ class MyHomePage extends StatelessWidget {
           // CONTENIDO PRINCIPAL
           Expanded(
             child: Container(
-              color: Colors.pink[50], // Color de fondo suave
+              color: Colors.pink[50],
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -87,140 +93,56 @@ class MyHomePage extends StatelessWidget {
                       horizontal: 16.0,
                       vertical: 16.0,
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Usuarios',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            IconButton(
-                              onPressed: () {},
-                              icon: const Icon(Icons.notifications),
-                            ),
-                            IconButton(
-                              onPressed: () {},
-                              icon: const Icon(Icons.settings),
-                            ),
-                            // Puedes agregar más íconos si lo deseas
-                          ],
-                        ),
-                      ],
+                    child: const Text(
+                      'Lista de Usuarios',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                  // CONTENIDO SCROLLEABLE
+                  // LISTA DE USUARIOS DESDE FIRESTORE
                   Expanded(
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Sección "Usuarios en Línea"
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'Usuarios en Línea',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: () {},
-                                  child: Row(
-                                    children: const [
-                                      Text('Ver todos'),
-                                      Icon(Icons.arrow_right),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              height: 80,
-                              child: ListView(
-                                scrollDirection: Axis.horizontal,
-                                children: List.generate(7, (index) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 12.0),
-                                    child: Column(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 25,
-                                          backgroundColor: Colors.grey[400],
-                                          child: Icon(
-                                            Icons.person,
-                                            color: Colors.white,
-                                            size: 30,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 5),
-                                        Text('us${index + 1}'),
-                                      ],
-                                    ),
-                                  );
-                                }),
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: getUsersStream(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+
+                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                          return const Center(child: Text("No hay usuarios disponibles"));
+                        }
+
+                        var users = snapshot.data!.docs;
+
+                        return ListView.builder(
+                          itemCount: users.length,
+                          itemBuilder: (context, index) {
+                            var user = users[index];
+                            String uid = user.id;
+                            String? username = user["nombre"] ?? "Sin nombre";
+
+                            return Card(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 16.0,
+                                vertical: 8.0,
                               ),
-                            ),
-                            const SizedBox(height: 20),
-                            // Sección "Todos los Usuarios"
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'Todos los Usuarios',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.grey[400],
+                                  child: const Icon(
+                                    Icons.person,
+                                    color: Colors.white,
                                   ),
                                 ),
-                                TextButton(
-                                  onPressed: () {},
-                                  child: Row(
-                                    children: const [
-                                      Text('Ver todos'),
-                                      Icon(Icons.arrow_right),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            // Aquí podrías usar un GridView o un Wrap
-                            // para mostrar tarjetas con los usuarios
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 10,
-                              children: List.generate(4, (index) {
-                                return Container(
-                                  width: (size.width - 70 - 60) /
-                                      2, // Ajustar tamaño con base en el sidebar y paddings
-                                  height: 100,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[300],
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '${index + 1}º',
-                                      style: const TextStyle(fontSize: 20),
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ),
-                            // Agrega más widgets según tu diseño
-                          ],
-                        ),
-                      ),
+                                title: Text("Wa"),
+                                subtitle: Text("UID: $uid"),
+                              ),
+                            );
+                          },
+                        );
+                      },
                     ),
                   ),
                 ],

@@ -161,7 +161,7 @@ class _ChatPageState extends State<ChatPage> {
                       title: Text(chatName),
                       selected: chatId == currentChatId,
                       trailing: IconButton(
-                        icon: Icon(Icons.close, color: Colors.red),
+                        icon: Icon(Icons.close, color: const Color.fromARGB(255, 158, 156, 156)),
                         onPressed: () async {
                           await _serveiChat.deleteChat(chatId);
                           // Si el chat eliminado era el actual, se reinicializa la selección.

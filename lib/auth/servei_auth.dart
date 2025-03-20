@@ -19,9 +19,9 @@ class ServeiAuth {
   // Hacer login
   Future<String?> loginAmbEmaiIPassword(String email, String password) async {
     try {
-      UserCredential credencialUsuari = await _auth.signInWithEmailAndPassword(
-          email: email, password: password);
-      
+      UserCredential credencialUsuari =
+          await _auth.signInWithEmailAndPassword(email: email, password: password);
+
       final QuerySnapshot querySnapshot = await _firestore
           .collection("Usuaris")
           .where("Email", isEqualTo: email)
@@ -48,16 +48,28 @@ class ServeiAuth {
       );
 
       if (credencialUsuari.user != null) {
-        print("Usuario creado con éxito: ${credencialUsuari.user!.uid}");
         await _firestore.collection("Usuaris").doc(credencialUsuari.user!.uid).set({
           "uid": credencialUsuari.user!.uid,
           "email": email,
           "nom": "",
         });
+
+        // Crear subcolección "Perfil" con datos iniciales
+        await _firestore
+            .collection("Usuaris")
+            .doc(credencialUsuari.user!.uid)
+            .collection("Perfil")
+            .doc("DatosPersonales")
+            .set({
+          "nombre": "",
+          "apellidos": "",
+          "fechaNacimiento": "",
+          "genero": "",
+          "situacionLaboral": "",
+        });
       } else {
         return "Error: No se pudo obtener el usuario después del registro.";
       }
-
       return null;
     } on FirebaseAuthException catch (e) {
       switch (e.code) {
@@ -97,7 +109,6 @@ class ServeiAuth {
         timeString = '${time.hour}:${time.minute}';
       }
 
-      // Guardar la tarea dentro de la subcolección del usuario
       await _firestore
           .collection("TareasUsers")
           .doc(currentUser.uid)
@@ -118,7 +129,7 @@ class ServeiAuth {
     }
   }
 
-  // Nuevo método para guardar la configuración de notificaciones
+  // Guardar configuración de notificaciones
   Future<String?> saveNotificationSettings({
     required bool enableNotifications,
     required bool filterByImportance,
@@ -137,7 +148,6 @@ class ServeiAuth {
 
       String formattedTime = '${notificationTime.hour}:${notificationTime.minute}';
 
-      // Se guarda la configuración en un documento único dentro de una subcolección "Notificaciones"
       await _firestore
           .collection("TareasUsers")
           .doc(currentUser.uid)
@@ -161,31 +171,59 @@ class ServeiAuth {
       return "Error al guardar la configuración de notificaciones.";
     }
   }
-  // Método para obtener la configuración de notificaciones
-Future<Map<String, dynamic>?> getNotificationSettings() async {
-  try {
-    User? currentUser = getUsuariActual();
-    if (currentUser == null) {
-      return null;
-    }
-    DocumentSnapshot snapshot = await _firestore
-        .collection("TareasUsers")
-        .doc(currentUser.uid)
-        .collection("Notificaciones")
-        .doc("Configuracion")
-        .get();
 
-    if (snapshot.exists) {
-      return snapshot.data() as Map<String, dynamic>;
-    } else {
+  // Obtener configuración de notificaciones
+  Future<Map<String, dynamic>?> getNotificationSettings() async {
+    try {
+      User? currentUser = getUsuariActual();
+      if (currentUser == null) {
+        return null;
+      }
+      DocumentSnapshot snapshot = await _firestore
+          .collection("TareasUsers")
+          .doc(currentUser.uid)
+          .collection("Notificaciones")
+          .doc("Configuracion")
+          .get();
+
+      if (snapshot.exists) {
+        return snapshot.data() as Map<String, dynamic>;
+      } else {
+        return null;
+      }
+    } catch (e) {
+      print("Error al cargar la configuración de notificaciones: $e");
       return null;
     }
-  } catch (e) {
-    print("Error al cargar la configuración de notificaciones: $e");
-    return null;
   }
-}
+  Future<String?> updateUserProfile({
+    required String email,
+    required String nombre,
+    required String apellidos,
+    required String fechaNacimiento,
+    required String genero,
+    required String situacionLaboral,
+  }) async {
+    try {
+      User? currentUser = getUsuariActual();
+      if (currentUser == null) {
+        return "No hay usuario autenticado.";
+      }
+
+      await _firestore.collection("Usuaris").doc(currentUser.uid).collection("Perfil").doc("DatosPersonales").set({
+        "nombre": nombre,
+        "apellidos": apellidos,
+        "fechaNacimiento": fechaNacimiento,
+        "genero": genero,
+        "situacionLaboral": situacionLaboral,
+        "updatedAt": FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return null;
+    } catch (e) {
+      print("Error al actualizar el perfil del usuario: $e");
+      return "Error al actualizar el perfil del usuario.";
+    }
+  }
 
 }
-
-
