@@ -3,9 +3,8 @@ import 'package:brainibot/auth/servei_auth.dart';
 
 class FormularioPerfil extends StatefulWidget {
   final String email;
-  final String password;
 
-  const FormularioPerfil({super.key, required this.email, required this.password});
+  const FormularioPerfil({super.key, required this.email});
 
   @override
   State<FormularioPerfil> createState() => _FormularioPerfilState();
@@ -31,21 +30,7 @@ class _FormularioPerfilState extends State<FormularioPerfil> {
       return;
     }
 
-    String? error = await ServeiAuth().resgitreAmbEmaiIPassword(widget.email, widget.password);
-    if (error != null) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text("Error"),
-          content: Text(error),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"))],
-        ),
-      );
-      return;
-    }
-
     await ServeiAuth().updateUserProfile(
-      email: widget.email,
       nombre: tecNombre.text,
       apellidos: tecApellidos.text,
       fechaNacimiento: tecFechaNacimiento.text,

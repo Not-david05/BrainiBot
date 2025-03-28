@@ -28,11 +28,17 @@ class ServeiAuth {
           .get();
 
       if (querySnapshot.docs.isEmpty) {
-        _firestore.collection("Usuaris").doc(credencialUsuari.user!.uid).set({
+        // Si el usuario no existe, se crea en Firestore
+        await _firestore.collection("Usuaris").doc(credencialUsuari.user!.uid).set({
           "uid": credencialUsuari.user!.uid,
           "email": email,
+        }).then((_) {
+          print('Usuario registrado en Firestore correctamente');
+        }).catchError((e) {
+          print('Error al registrar el usuario en Firestore: $e');
         });
       }
+
       return null;
     } on FirebaseAuthException catch (e) {
       return "Error: ${e.message}";
@@ -66,6 +72,10 @@ class ServeiAuth {
           "fechaNacimiento": "",
           "genero": "",
           "situacionLaboral": "",
+        }).then((_) {
+          print('Perfil creado correctamente en Firestore');
+        }).catchError((e) {
+          print('Error al crear el perfil: $e');
         });
       } else {
         return "Error: No se pudo obtener el usuario después del registro.";
@@ -89,43 +99,65 @@ class ServeiAuth {
     }
   }
 
-  // Guardar tarea asociada al usuario actual dentro de TareasUsers
-  Future<String?> saveTask({
-    required String title,
-    required String category,
-    required String priority,
-    required DateTime date,
-    TimeOfDay? time,
+  // Actualizar el perfil del usuario
+  Future<String?> updateUserProfile({
+    required String nombre,
+    required String apellidos,
+    required String fechaNacimiento,
+    required String genero,
+    required String situacionLaboral,
   }) async {
     try {
       User? currentUser = getUsuariActual();
-
       if (currentUser == null) {
         return "No hay usuario autenticado.";
       }
 
-      String? timeString;
-      if (time != null) {
-        timeString = '${time.hour}:${time.minute}';
-      }
-
-      await _firestore
-          .collection("TareasUsers")
-          .doc(currentUser.uid)
-          .collection("Tareas")
-          .add({
-        "title": title,
-        "category": category,
-        "priority": priority,
-        "date": date,
-        "time": timeString ?? "",
-        "createdAt": FieldValue.serverTimestamp(),
+      // Actualizar datos en Firestore
+      await _firestore.collection("Usuaris").doc(currentUser.uid).collection("Perfil").doc("DatosPersonales").set({
+        "email": currentUser.email,
+        "nombre": nombre,
+        "apellidos": apellidos,
+        "fechaNacimiento": fechaNacimiento,
+        "genero": genero,
+        "situacionLaboral": situacionLaboral,
+        "updatedAt": FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)).then((_) {
+        print('Perfil actualizado correctamente en Firestore');
+      }).catchError((e) {
+        print('Error al actualizar el perfil: $e');
       });
 
       return null;
     } catch (e) {
-      print("Error al guardar tarea: $e");
-      return "Error al guardar la tarea.";
+      print("Error al actualizar el perfil del usuario: $e");
+      return "Error al actualizar el perfil del usuario.";
+    }
+  }
+
+
+  // Obtener configuración de notificaciones
+  Future<Map<String, dynamic>?> getNotificationSettings() async {
+    try {
+      User? currentUser = getUsuariActual();
+      if (currentUser == null) {
+        return null;
+      }
+      DocumentSnapshot snapshot = await _firestore
+          .collection("TareasUsers")
+          .doc(currentUser.uid)
+          .collection("Notificaciones")
+          .doc("Configuracion")
+          .get();
+
+      if (snapshot.exists) {
+        return snapshot.data() as Map<String, dynamic>;
+      } else {
+        return null;
+      }
+    } catch (e) {
+      print("Error al cargar la configuración de notificaciones: $e");
+      return null;
     }
   }
 
@@ -163,6 +195,10 @@ class ServeiAuth {
         "notifyEveryDayBeforeDeadline": notifyEveryDayBeforeDeadline,
         "notificationTime": formattedTime,
         "updatedAt": FieldValue.serverTimestamp(),
+      }).then((_) {
+        print('Configuración de notificaciones guardada correctamente');
+      }).catchError((e) {
+        print('Error al guardar la configuración de notificaciones: $e');
       });
 
       return null;
@@ -172,58 +208,47 @@ class ServeiAuth {
     }
   }
 
-  // Obtener configuración de notificaciones
-  Future<Map<String, dynamic>?> getNotificationSettings() async {
-    try {
-      User? currentUser = getUsuariActual();
-      if (currentUser == null) {
-        return null;
-      }
-      DocumentSnapshot snapshot = await _firestore
-          .collection("TareasUsers")
-          .doc(currentUser.uid)
-          .collection("Notificaciones")
-          .doc("Configuracion")
-          .get();
-
-      if (snapshot.exists) {
-        return snapshot.data() as Map<String, dynamic>;
-      } else {
-        return null;
-      }
-    } catch (e) {
-      print("Error al cargar la configuración de notificaciones: $e");
-      return null;
-    }
-  }
-  Future<String?> updateUserProfile({
-    required String email,
-    required String nombre,
-    required String apellidos,
-    required String fechaNacimiento,
-    required String genero,
-    required String situacionLaboral,
+  // Guardar tarea asociada al usuario actual dentro de TareasUsers
+  Future<String?> saveTask({
+    required String title,
+    required String category,
+    required String priority,
+    required DateTime date,
+    TimeOfDay? time,
   }) async {
     try {
       User? currentUser = getUsuariActual();
+
       if (currentUser == null) {
         return "No hay usuario autenticado.";
       }
 
-      await _firestore.collection("Usuaris").doc(currentUser.uid).collection("Perfil").doc("DatosPersonales").set({
-        "nombre": nombre,
-        "apellidos": apellidos,
-        "fechaNacimiento": fechaNacimiento,
-        "genero": genero,
-        "situacionLaboral": situacionLaboral,
-        "updatedAt": FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      String? timeString;
+      if (time != null) {
+        timeString = '${time.hour}:${time.minute}';
+      }
+
+      await _firestore
+          .collection("TareasUsers")
+          .doc(currentUser.uid)
+          .collection("Tareas")
+          .add({
+        "title": title,
+        "category": category,
+        "priority": priority,
+        "date": date,
+        "time": timeString ?? "",
+        "createdAt": FieldValue.serverTimestamp(),
+      }).then((_) {
+        print('Tarea guardada correctamente');
+      }).catchError((e) {
+        print('Error al guardar tarea: $e');
+      });
 
       return null;
     } catch (e) {
-      print("Error al actualizar el perfil del usuario: $e");
-      return "Error al actualizar el perfil del usuario.";
+      print("Error al guardar la tarea: $e");
+      return "Error al guardar la tarea.";
     }
   }
-
-}
+} 
