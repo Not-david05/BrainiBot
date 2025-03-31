@@ -2,11 +2,13 @@ import 'package:brainibot/Firebase/firebase_options.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 
-void main() async{
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    options:DefaultFirebaseOptions.currentPlatform,
+    options: DefaultFirebaseOptions.currentPlatform,
   );
   runApp(const AdminPage());
 }
@@ -34,12 +36,88 @@ class UserListPage extends StatelessWidget {
     return FirebaseFirestore.instance.collection("Usuaris").snapshots();
   }
 
+  Future<Map<String, String>> getUserData(String uid) async {
+    DocumentSnapshot perfilSnapshot = await FirebaseFirestore.instance
+        .collection("Usuaris")
+        .doc(uid)
+        .collection("Perfil")
+        .doc("DatosPersonales")
+        .get();
+
+    if (perfilSnapshot.exists) {
+      return {
+        "nombre": perfilSnapshot["nombre"] ?? "Sin nombre",
+        "email": perfilSnapshot["email"] ?? "Sin email",
+      };
+    }
+    return {"nombre": "Sin nombre", "email": "Sin email"};
+  }
+
+  void showDeleteDialog(BuildContext context, String uid) {
+    int countdown = 5;
+    bool canDelete = false;
+    late Timer timer;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            timer = Timer.periodic(const Duration(seconds: 1), (t) {
+              if (!context.mounted) {
+                t.cancel();
+                return;
+              }
+              if (countdown > 0) {
+                setState(() {
+                  countdown--;
+                });
+              } else {
+                t.cancel();
+                setState(() {
+                  canDelete = true;
+                });
+              }
+            });
+
+            return AlertDialog(
+              title: const Text("Eliminar Usuario"),
+              content: Text(canDelete
+                  ? "¿Estás seguro de que quieres eliminar este usuario?"
+                  : "Espera $countdown segundos antes de poder eliminar."),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    timer.cancel();
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text("Cancelar"),
+                ),
+                TextButton(
+                  onPressed: canDelete
+                      ? () async {
+                          await deleteUser(uid);
+                          timer.cancel();
+                          Navigator.pop(dialogContext);
+                        }
+                      : null,
+                  child: const Text("Eliminar", style: TextStyle(color: Colors.red)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then((_) {
+      timer.cancel();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Row(
         children: [
-          // SIDEBAR (menú lateral)
           Container(
             width: 70,
             color: Colors.pink[100],
@@ -80,14 +158,12 @@ class UserListPage extends StatelessWidget {
               ],
             ),
           ),
-          // CONTENIDO PRINCIPAL
           Expanded(
             child: Container(
               color: Colors.pink[50],
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ENCABEZADO
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16.0,
@@ -101,7 +177,6 @@ class UserListPage extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // LISTA DE USUARIOS DESDE FIRESTORE
                   Expanded(
                     child: StreamBuilder<QuerySnapshot>(
                       stream: getUsersStream(),
@@ -121,24 +196,35 @@ class UserListPage extends StatelessWidget {
                           itemBuilder: (context, index) {
                             var user = users[index];
                             String uid = user.id;
-                            String? username = user["nombre"] ?? "Sin nombre";
 
-                            return Card(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 16.0,
-                                vertical: 8.0,
-                              ),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: Colors.grey[400],
-                                  child: const Icon(
-                                    Icons.person,
-                                    color: Colors.white,
+                            return FutureBuilder<Map<String, String>>(
+                              future: getUserData(uid),
+                              builder: (context, dataSnapshot) {
+                                String nombre = dataSnapshot.data?["nombre"] ?? "Cargando...";
+                                String email = dataSnapshot.data?["email"] ?? "Cargando...";
+
+                                return Card(
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 16.0,
+                                    vertical: 8.0,
                                   ),
-                                ),
-                                title: Text("Wa"),
-                                subtitle: Text("UID: $uid"),
-                              ),
+                                  child: ListTile(
+                                    leading: CircleAvatar(
+                                      backgroundColor: Colors.grey[400],
+                                      child: const Icon(
+                                        Icons.person,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    title: Text(nombre),
+                                    subtitle: Text("Email: $email\nUID: $uid"),
+                                    trailing: IconButton(
+                                      icon: const Icon(Icons.delete, color: Colors.red),
+                                      onPressed: () => showDeleteDialog(context, uid),
+                                    ),
+                                  ),
+                                );
+                              },
                             );
                           },
                         );
@@ -152,5 +238,36 @@ class UserListPage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> deleteUser(String uid) async {
+    FirebaseFirestore firestore = FirebaseFirestore.instance;
+    FirebaseAuth auth = FirebaseAuth.instance;
+
+    try {
+      // 1️⃣ Eliminar los datos en Firestore
+      CollectionReference perfilRef = firestore.collection("Usuaris").doc(uid).collection("Perfil");
+      QuerySnapshot perfilSnapshot = await perfilRef.get();
+      for (var doc in perfilSnapshot.docs) {
+        await doc.reference.delete();
+      }
+      await firestore.collection("Usuaris").doc(uid).delete();
+
+      // 2️⃣ Eliminar el usuario en Firebase Authentication
+      User? userToDelete = await getUserByUid(uid);
+      if (userToDelete != null) {
+        await userToDelete.delete();
+      } else {
+        print("Usuario no encontrado en Firebase Auth.");
+      }
+
+    } catch (e) {
+      print("Error al eliminar usuario: $e");
+    }
+  }
+
+  Future<User?> getUserByUid(String uid) async {
+    FirebaseAuth auth = FirebaseAuth.instance;
+    return auth.currentUser?.uid == uid ? auth.currentUser : null;
   }
 }

@@ -26,6 +26,7 @@ class _FormularioPerfilState extends State<FormularioPerfil> {
           content: const Text("Por favor, completa todos los campos obligatorios."),
           actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"))],
         ),
+        
       );
       return;
     }

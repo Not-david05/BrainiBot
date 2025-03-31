@@ -2,6 +2,7 @@ import 'package:brainibot/Pages/Chat%20page.dart';
 import 'package:brainibot/Pages/Starter.dart';
 import 'package:brainibot/Pages/TaskC.dart';
 import 'package:brainibot/Pages/editar_dades.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -26,17 +27,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
 
-  // Método para cerrar sesión
+  final TextEditingController _nombreController = TextEditingController();
+  final TextEditingController _apellidosController = TextEditingController();
+
+  User? currentUser = FirebaseAuth.instance.currentUser;
+  String firstName = "";
+  String lastName = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    if (currentUser != null) {
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection("Usuaris")
+          .doc(currentUser!.uid)
+          .collection("Perfil")
+          .doc("DatosPersonales")
+          .get();
+
+      if (userDoc.exists) {
+        Map<String, dynamic>? data = userDoc.data() as Map<String, dynamic>?;
+        if (data != null) {
+          setState(() {
+            firstName = data["nombre"] ?? "";
+            lastName = data["apellidos"] ?? "";
+            _nombreController.text = firstName;
+            _apellidosController.text = lastName;
+          });
+        }
+      }
+    }
+  }
+
   Future<void> _signOut(BuildContext context) async {
     try {
       await FirebaseAuth.instance.signOut();
-      // El StreamBuilder en PortalAuth se encargará de redirigir a la pantalla de login
     } catch (e) {
       print("Error al cerrar sesión: $e");
     }
   }
 
-  // Método para navegar a la pantalla de edición de perfil
   void _editarPerfil(BuildContext context) {
     Navigator.push(
       context,
@@ -46,14 +80,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = FirebaseAuth.instance.currentUser;
     return Scaffold(
       backgroundColor: const Color(0xFFF4EAF8),
       appBar: AppBar(
         title: const Text("BrainiBot"),
         backgroundColor: Colors.purple.shade200,
         actions: [
-          // Icono de tres puntos que muestra un menú desplegable
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (value) {
@@ -78,8 +110,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       body: Center(
         child: Card(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           elevation: 4,
           child: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -90,15 +121,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Row(
                   children: [
                     CircleAvatar(
-                      child: const Text("D"),
+                      radius: 24,
                       backgroundColor: Colors.purple.shade100,
+                      backgroundImage: currentUser?.photoURL != null
+                          ? NetworkImage(currentUser!.photoURL!)
+                          : null,
+                      child: currentUser?.photoURL == null
+                          ? Text(
+                              firstName.isNotEmpty
+                                  ? firstName.substring(0, 1).toUpperCase()
+                                  : (currentUser?.email?.substring(0, 1).toUpperCase() ?? ""),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                            )
+                          : null,
                     ),
                     const SizedBox(width: 8),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text("David", style: TextStyle(fontWeight: FontWeight.bold)),
-                        Text("Valentin Medina", style: TextStyle(color: Colors.grey)),
+                      children: [
+                        Text(firstName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        Text(lastName, style: const TextStyle(color: Colors.grey)),
                       ],
                     ),
                   ],
@@ -149,12 +191,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           MaterialPageRoute(builder: (context) => ChatPage()),
                         );
                       },
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color.fromARGB(255, 62, 136, 206)),
-                      child: const Text(
-                        "Nuevo chat",
-                        style: TextStyle(color: Colors.white),
-                      ),
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color.fromARGB(255, 62, 136, 206)),
+                      child: const Text("Nuevo chat", style: TextStyle(color: Colors.white)),
                     ),
                   ],
                 ),
@@ -185,12 +223,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           MaterialPageRoute(builder: (context) => TaskC()),
                         );
                       },
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color.fromARGB(255, 62, 136, 206)),
-                      child: const Text(
-                        "Nueva tarea",
-                        style: TextStyle(color: Colors.white),
-                      ),
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color.fromARGB(255, 62, 136, 206)),
+                      child: const Text("Nueva tarea", style: TextStyle(color: Colors.white)),
                     ),
                   ],
                 ),
