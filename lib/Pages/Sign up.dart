@@ -42,7 +42,7 @@ class _SignInPageState extends State<SignInPage> {
           backgroundColor: Color.fromARGB(255, 250, 183, 159),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           title: const Text("Error"),
-          content: Text("Error de comunicacion"),
+          content: Text(error),
         ),
       );
     }
