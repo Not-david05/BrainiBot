@@ -54,6 +54,8 @@ class _FormularioPerfilState extends State<FormularioPerfil> {
   }
 
   Future<void> completarRegistro() async {
+    print(tecNombre);
+    print(tecApellidos);
     if (tecNombre.text.isEmpty ||
         tecApellidos.text.isEmpty ||
         situacionLaboralSeleccionada == null ||
@@ -75,7 +77,7 @@ class _FormularioPerfilState extends State<FormularioPerfil> {
       return;
     }
 
-    await ServeiAuth().updateUserProfile(
+    String? resultat= await ServeiAuth().updateUserProfile(
       nombre: tecNombre.text,
       apellidos: tecApellidos.text,
       fechaNacimiento:
@@ -83,7 +85,8 @@ class _FormularioPerfilState extends State<FormularioPerfil> {
       genero: generoSeleccionado ?? "",
       situacionLaboral: situacionLaboralSeleccionada!,
     );
-
+    print("Funcionando");
+    print(resultat);
     Navigator.pushReplacementNamed(context, '/home');
   }
 
@@ -271,7 +274,7 @@ class _FormularioPerfilState extends State<FormularioPerfil> {
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: completarRegistro,
+              onPressed:() async {completarRegistro();} ,
               style: ElevatedButton.styleFrom(
                 backgroundColor: _accentColor,
                 shape: RoundedRectangleBorder(

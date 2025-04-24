@@ -359,7 +359,9 @@ class _EditarDadesState extends State<EditarDades> {
                 icon: Icons.wc,
                 label: "Género",
                 fieldWidget: DropdownButtonFormField<String>(
-                  value: _generoSeleccionado!.isNotEmpty ? _generoSeleccionado : null,
+                value: (_generoSeleccionado != null && _generoSeleccionado!.isNotEmpty)
+                  ? _generoSeleccionado
+                  : null,
                   onChanged: (value) => setState(() {
                     _generoSeleccionado = value;
                   }),
@@ -380,7 +382,9 @@ class _EditarDadesState extends State<EditarDades> {
                 icon: Icons.work,
                 label: "Situación Laboral",
                 fieldWidget: DropdownButtonFormField<String>(
-                  value: _situacionLaboralSeleccionada!.isNotEmpty ? _situacionLaboralSeleccionada : null,
+                  value: (_situacionLaboralSeleccionada != null && _situacionLaboralSeleccionada!.isNotEmpty)
+                  ? _situacionLaboralSeleccionada
+                  : null,
                   onChanged: (value) => setState(() {
                     _situacionLaboralSeleccionada = value;
                   }),

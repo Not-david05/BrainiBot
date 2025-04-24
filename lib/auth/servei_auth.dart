@@ -112,7 +112,7 @@ class ServeiAuth {
       if (currentUser == null) {
         return "No hay usuario autenticado.";
       }
-
+      print(currentUser.uid);
       // Actualizar datos en Firestore
       await _firestore.collection("Usuaris").doc(currentUser.uid).collection("Perfil").doc("DatosPersonales").set({
         "email": currentUser.email,
@@ -128,11 +128,11 @@ class ServeiAuth {
         print('Error al actualizar el perfil: $e');
       });
 
-      return null;
-    } catch (e) {
-      print("Error al actualizar el perfil del usuario: $e");
-      return "Error al actualizar el perfil del usuario.";
-    }
+      return ("Okay");
+    } catch (e, stackTrace) {
+  print("Error: $e");
+  print("Stacktrace: $stackTrace");
+}
   }
 
 
@@ -209,46 +209,48 @@ class ServeiAuth {
   }
 
   // Guardar tarea asociada al usuario actual dentro de TareasUsers
-  Future<String?> saveTask({
-    required String title,
-    required String category,
-    required String priority,
-    required DateTime date,
-    TimeOfDay? time,
-  }) async {
-    try {
-      User? currentUser = getUsuariActual();
+  // Guardar tarea asociada al usuario actual dentro de TareasUsers
+Future<String?> saveTask({
+  required String title,
+  required String category,
+  required String priority,
+  required DateTime date,
+  TimeOfDay? time,
+}) async {
+  try {
+    User? currentUser = getUsuariActual();
 
-      if (currentUser == null) {
-        return "No hay usuario autenticado.";
-      }
-
-      String? timeString;
-      if (time != null) {
-        timeString = '${time.hour}:${time.minute}';
-      }
-
-      await _firestore
-          .collection("TareasUsers")
-          .doc(currentUser.uid)
-          .collection("Tareas")
-          .add({
-        "title": title,
-        "category": category,
-        "priority": priority,
-        "date": date,
-        "time": timeString ?? "",
-        "createdAt": FieldValue.serverTimestamp(),
-      }).then((_) {
-        print('Tarea guardada correctamente');
-      }).catchError((e) {
-        print('Error al guardar tarea: $e');
-      });
-
-      return null;
-    } catch (e) {
-      print("Error al guardar la tarea: $e");
-      return "Error al guardar la tarea.";
+    if (currentUser == null) {
+      return "No hay usuario autenticado.";
     }
+
+    String? timeString;
+    if (time != null) {
+      timeString = '${time.hour}:${time.minute}';
+    }
+
+    await _firestore
+        .collection("TareasUsers")
+        .doc(currentUser.uid)
+        .collection("Tareas")
+        .add({
+      "title": title,
+      "category": category,
+      "priority": priority,
+      "date": date,
+      "time": timeString ?? "",
+      "completed": false, // Nuevo campo booleano que indica si la tarea está realizada
+      "createdAt": FieldValue.serverTimestamp(),
+    }).then((_) {
+      print('Tarea guardada correctamente');
+    }).catchError((e) {
+      print('Error al guardar tarea: $e');
+    });
+
+    return null;
+  } catch (e) {
+    print("Error al guardar la tarea: $e");
+    return "Error al guardar la tarea.";
   }
+}
 } 

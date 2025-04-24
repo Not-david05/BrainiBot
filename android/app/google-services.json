@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "586311719352",
-    "project_id": "brainibot-d6eb6",
-    "storage_bucket": "brainibot-d6eb6.firebasestorage.app"
+    "project_number": "375830810171",
+    "project_id": "brainibot-90126",
+    "storage_bucket": "brainibot-90126.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:586311719352:android:b8b70ecab8015fcfa3574d",
+        "mobilesdk_app_id": "1:375830810171:android:5bc831d88ac17e9332561e",
         "android_client_info": {
           "package_name": "com.example.brainibot"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyC7FZCZQdI5efrpqaaZICVyGmV3vvQOQpc"
+          "current_key": "AIzaSyCNwqZOwQna7RyLXVzeFd23GmzRyuURL4I"
         }
       ],
       "services": {
