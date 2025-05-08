@@ -1,7 +1,8 @@
 {
   "projects": {
-    "DaVID": "brainibot-d6eb6",
-    "default": "brainibot-d6eb6"
+    "DaVID": "brainibot-90126",
+    "default": "brainibot-90126",
+    "brainibot": "brainibot-90126"
   },
   "targets": {},
   "etags": {}
