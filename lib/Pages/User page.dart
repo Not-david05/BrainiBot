@@ -1,7 +1,9 @@
 import 'package:brainibot/Pages/Chat%20page.dart';
 import 'package:brainibot/Pages/Starter.dart';
 import 'package:brainibot/Pages/TaskC.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Importar FirebaseAuth
+import 'package:brainibot/Pages/editar_dades.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 
@@ -25,28 +27,84 @@ class _DashboardScreenState extends State<DashboardScreen> {
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
 
-  // Método para cerrar sesión
+  final TextEditingController _nombreController = TextEditingController();
+  final TextEditingController _apellidosController = TextEditingController();
+
+  User? currentUser = FirebaseAuth.instance.currentUser;
+  String firstName = "";
+  String lastName = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    if (currentUser != null) {
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection("Usuaris")
+          .doc(currentUser!.uid)
+          .collection("Perfil")
+          .doc("DatosPersonales")
+          .get();
+
+      if (userDoc.exists) {
+        Map<String, dynamic>? data = userDoc.data() as Map<String, dynamic>?;
+        if (data != null) {
+          setState(() {
+            firstName = data["nombre"] ?? "";
+            lastName = data["apellidos"] ?? "";
+            _nombreController.text = firstName;
+            _apellidosController.text = lastName;
+          });
+        }
+      }
+    }
+  }
+
   Future<void> _signOut(BuildContext context) async {
     try {
-      await FirebaseAuth.instance.signOut(); // Cerrar sesión en Firebase
-      // No es necesario navegar manualmente, el StreamBuilder en PortalAuth lo manejará
+      await FirebaseAuth.instance.signOut();
     } catch (e) {
       print("Error al cerrar sesión: $e");
     }
   }
 
+  void _editarPerfil(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => EditarDades()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFF4EAF8),
+      backgroundColor: const Color(0xFFF4EAF8),
       appBar: AppBar(
-        title: Text("BrainiBot"), // Título del AppBar
-        backgroundColor: Colors.purple.shade200, // Color de fondo del AppBar
+        title: const Text("BrainiBot"),
+        backgroundColor: Colors.purple.shade200,
         actions: [
-          // Botón para cerrar sesión
-          IconButton(
-            icon: Icon(Icons.logout), // Icono de logout
-            onPressed: () => _signOut(context), // Llamar al método de cierre de sesión
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'logout') {
+                _signOut(context);
+              } else if (value == 'editar') {
+                _editarPerfil(context);
+              }
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'editar',
+                child: Text('Editar perfil'),
+              ),
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Text('Logout'),
+              ),
+            ],
           ),
         ],
       ),
@@ -63,20 +121,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Row(
                   children: [
                     CircleAvatar(
-                      child: Text("D"),
+                      radius: 24,
                       backgroundColor: Colors.purple.shade100,
+                      backgroundImage: currentUser?.photoURL != null
+                          ? NetworkImage(currentUser!.photoURL!)
+                          : null,
+                      child: currentUser?.photoURL == null
+                          ? Text(
+                              firstName.isNotEmpty
+                                  ? firstName.substring(0, 1).toUpperCase()
+                                  : (currentUser?.email?.substring(0, 1).toUpperCase() ?? ""),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                            )
+                          : null,
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text("David", style: TextStyle(fontWeight: FontWeight.bold)),
-                        Text("Valentin Medina", style: TextStyle(color: Colors.grey)),
+                        Text(firstName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        Text(lastName, style: const TextStyle(color: Colors.grey)),
                       ],
                     ),
                   ],
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Container(
                   height: 400,
                   child: TableCalendar(
@@ -100,62 +169,62 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     },
                   ),
                 ),
-                SizedBox(height: 16),
-                Text("BrainiBot", style: TextStyle(fontWeight: FontWeight.bold)),
-                Text("Empezar o seguir un chat"),
-                SizedBox(height: 4),
-                Text("Último Chat: .... --/--/--", style: TextStyle(color: Colors.purple.shade200)),
+                const SizedBox(height: 16),
+                const Text("BrainiBot", style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text("Empezar o seguir un chat"),
+                const SizedBox(height: 4),
+                Text(
+                  "Último Chat: .... --/--/--",
+                  style: TextStyle(color: Colors.purple.shade200),
+                ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     OutlinedButton(
                       onPressed: () {},
-                      child: Text("Historial de chats"),
+                      child: const Text("Historial de chats"),
                     ),
                     ElevatedButton(
                       onPressed: () {
                         Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => Chat_page(),
-                            ),
-                          );
+                          context,
+                          MaterialPageRoute(builder: (context) => ChatPage()),
+                        );
                       },
-                     style: ElevatedButton.styleFrom(backgroundColor: const Color.fromARGB(255, 62, 136, 206)),
-                      child: Text("Nuevo chat",style: TextStyle(color: Colors.white),),
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color.fromARGB(255, 62, 136, 206)),
+                      child: const Text("Nuevo chat", style: TextStyle(color: Colors.white)),
                     ),
                   ],
                 ),
-                SizedBox(height: 16),
-                Text("Tareas", style: TextStyle(fontWeight: FontWeight.bold)),
-                Text("Crear una nueva tarea o gestionar las ya creadas"),
-                SizedBox(height: 4),
-                Text("Próxima Deadline: tarea:... --/--/--", style: TextStyle(color: Colors.purple.shade200)),
+                const SizedBox(height: 16),
+                const Text("Tareas", style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text("Crear una nueva tarea o gestionar las ya creadas"),
+                const SizedBox(height: 4),
+                Text(
+                  "Próxima Deadline: tarea:... --/--/--",
+                  style: TextStyle(color: Colors.purple.shade200),
+                ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     OutlinedButton(
                       onPressed: () {
                         Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => Starter(),
-                            ),
-                          );
+                          context,
+                          MaterialPageRoute(builder: (context) => Starter()),
+                        );
                       },
-                      child: Text("Gestionar tareas"),
+                      child: const Text("Gestionar tareas"),
                     ),
                     ElevatedButton(
                       onPressed: () {
                         Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => TaskC(),
-                            ),
-                          );
+                          context,
+                          MaterialPageRoute(builder: (context) => TaskC()),
+                        );
                       },
                       style: ElevatedButton.styleFrom(backgroundColor: const Color.fromARGB(255, 62, 136, 206)),
-                      child: Text("Nueva tarea",style: TextStyle(color: Colors.white),),
+                      child: const Text("Nueva tarea", style: TextStyle(color: Colors.white)),
                     ),
                   ],
                 ),

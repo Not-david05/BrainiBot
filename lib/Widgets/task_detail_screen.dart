@@ -1,4 +1,5 @@
 import 'package:brainibot/Pages/Starter.dart';
+import 'package:brainibot/auth/servei_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -53,20 +54,27 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     super.dispose();
   }
 
- Future<void> _updateTask(String field, String newValue) async {
+Future<void> _updateTask(String field, String newValue) async {
   try {
-    // Fetch the document from the "Tareas" collection
-    var doc = await _firestore.collection('Tareas').doc(widget.taskId).get();
-    
-    if (doc.exists) {
-      print("Document exists, updating field: $field to $newValue");
-      await _firestore.collection('Tareas').doc(widget.taskId).update({field: newValue});
-      print("Task updated successfully!");
-    } else {
-      print("Document with ID ${widget.taskId} does not exist in 'Tareas' collection.");
+    // Obtener el usuario actual
+    var currentUser = ServeiAuth().getUsuariActual();
+
+    if (currentUser == null) {
+      print("No hay usuario autenticado.");
+      return;
     }
+
+    // Referencia al documento del usuario en la colección "TareasUsers"
+    var userDoc = _firestore.collection("TareasUsers").doc(currentUser.uid);
+
+    // Actualizar el campo dentro de la subcolección "Tareas"
+    await userDoc.collection("Tareas").doc(widget.taskId).update({
+      field: newValue,
+    });
+
+    print("Campo actualizado exitosamente: $field -> $newValue");
   } catch (error) {
-    print("Error fetching or updating document: $error");
+    print("Error al actualizar la tarea: $error");
   }
 }
 
@@ -97,7 +105,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
-  void _deleteTask() {
+ void _deleteTask() {
   showDialog(
     context: context,
     builder: (context) {
@@ -114,20 +122,44 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           TextButton(
             onPressed: () async {
               try {
-                // Borra la tarea de Firestore
-                await _firestore.collection('Tareas').doc(widget.taskId).delete();
-                
-                // Salir de la pantalla de detalles de la tarea (volvemos atrás)
-                Navigator.pop(context); // Cierra el diálogo
-                Navigator.push(
+                // Obtener el usuario actual
+                var currentUser = ServeiAuth().getUsuariActual();
+
+                if (currentUser == null) {
+                  print("No hay usuario autenticado.");
+                  return;
+                }
+
+                // Referencia al documento de la tarea en la subcolección "Tareas" del usuario
+                await _firestore
+                    .collection("TareasUsers")
+                    .doc(currentUser.uid)
+                    .collection("Tareas")
+                    .doc(widget.taskId)
+                    .delete();
+
+                // Cerrar el diálogo
+                Navigator.pop(context);
+
+                // Volver a la pantalla anterior (lista de tareas)
+                 Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => Starter(),
                           ),
-                        );// Vuelve atrás a la lista de tareas
+                        );// Vuelve atrás a la lista de tare
+
                 print("Tarea eliminada exitosamente!");
               } catch (error) {
                 print("Error al eliminar la tarea: $error");
+
+                // Mostrar un mensaje de error al usuario (opcional)
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text("Error al eliminar la tarea: $error"),
+                    backgroundColor: Colors.red,
+                  ),
+                );
               }
             },
             child: Text("Sí, eliminar", style: TextStyle(color: Colors.red)),

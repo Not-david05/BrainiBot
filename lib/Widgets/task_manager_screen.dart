@@ -1,16 +1,39 @@
 import 'package:brainibot/Pages/Notifications%20settings.dart';
-import 'package:flutter/material.dart';
+import 'package:brainibot/Pages/User%20page.dart';
 import 'package:brainibot/Pages/TaskC.dart';
-import 'task_item.dart';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart'; // Para formatear la fecha
+import 'task_item.dart';
 
-class TaskManagerScreen extends StatelessWidget {
+class TaskManagerScreen extends StatefulWidget {
+  @override
+  _TaskManagerScreenState createState() => _TaskManagerScreenState();
+}
+
+class _TaskManagerScreenState extends State<TaskManagerScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // Toggle con tres opciones: 0: En progreso, 1: Completadas, 2: Atrasadas
+  List<bool> _isSelected = [true, false, false];
+
+  // Función para seleccionar el toggle
+  void _onTogglePressed(int index) {
+    setState(() {
+      for (int i = 0; i < _isSelected.length; i++) {
+        _isSelected[i] = i == index;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Obtenemos el mes actual formateado (en español)
+    String currentMonth = DateFormat.MMMM('es').format(DateTime.now());
+    DateTime now = DateTime.now();
+    
     return Scaffold(
       bottomNavigationBar: BottomNavigationBar(
         items: [
@@ -34,7 +57,12 @@ class TaskManagerScreen extends StatelessWidget {
                   children: [
                     IconButton(
                       icon: Icon(Icons.arrow_back),
-                      onPressed: () {},
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => User_page(),
+                        ),
+                      ),
                     ),
                     Spacer(),
                     Icon(Icons.more_vert),
@@ -66,59 +94,108 @@ class TaskManagerScreen extends StatelessWidget {
               ],
             ),
           ),
+          // Eliminamos cualquier botón extra y utilizamos solo el toggle para filtrar
           Padding(
             padding: EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text("Tareas de {Mes}", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    Text("Hay {Número} este mes incompletas", style: TextStyle(color: Colors.grey[600])),
-                  ],
-                ),
-                SizedBox(height: 10),
-                ToggleButtons(
-                  borderRadius: BorderRadius.circular(10),
-                  isSelected: [true, false],
-                  children: [Text("Completadas"), Text("En progreso")],
-                  onPressed: (index) {},
-                ),
-                SizedBox(height: 20),
-                StreamBuilder(
-                  stream: _firestore
-                      .collection("Tareas")
-                      .where("uid", isEqualTo: _auth.currentUser?.uid) // Filtrar por usuario actual
-                      .snapshots(),
-                  builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Center(child: CircularProgressIndicator());
-                    }
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return Center(child: Text("No hay tareas disponibles"));
-                    }
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _firestore
+                  .collection("TareasUsers")
+                  .doc(_auth.currentUser?.uid)
+                  .collection("Tareas")
+                  .snapshots(),
+              builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(child: CircularProgressIndicator());
+                }
+                // Filtrar tareas del mes actual
+                final allTasks = snapshot.data?.docs ?? [];
+                final tasksForCurrentMonth = allTasks.where((task) {
+                  DateTime taskDate = (task["date"] as Timestamp).toDate();
+                  return taskDate.month == now.month && taskDate.year == now.year;
+                }).toList();
 
-                    final tasks = snapshot.data!.docs;
-                    return Column(
-                      children: tasks.map((task) {
-                        return TaskItem(
-                          taskId: task.id, // Aquí usamos el ID del documento en Firestore
-                          title: task["title"],
-                          category: task["category"],
-                          priority: task["priority"],
-                          stars: _getPriorityStars(task["priority"]),
-                          dueDate: (task["date"] as Timestamp).toDate(),
-                        );
-                      }).toList().cast<Widget>(), // Convertimos a lista de Widgets
-                    );
-                  },
-                ),
-              ],
+                // Para el conteo general de tareas incompletas (en progreso sin tareas atrasadas)
+                final inProgressTasks = tasksForCurrentMonth.where((task) {
+                  DateTime taskDate = (task["date"] as Timestamp).toDate();
+                  return task["completed"] == false && !taskDate.isBefore(now);
+                }).toList();
+
+                String countMessage = inProgressTasks.isEmpty
+                    ? "¡Has terminado todas las tareas de este mes!"
+                    : "Hay ${inProgressTasks.length} este mes incompletas";
+
+                // Filtrar tareas según el toggle seleccionado:
+                List<dynamic> filteredTasks = [];
+                if (_isSelected[0]) {
+                  // En progreso: tareas no completadas y con fecha >= hoy
+                  filteredTasks = tasksForCurrentMonth.where((task) {
+                    DateTime taskDate = (task["date"] as Timestamp).toDate();
+                    return task["completed"] == false && !taskDate.isBefore(now);
+                  }).toList();
+                } else if (_isSelected[1]) {
+                  // Completadas: tareas marcadas como completadas
+                  filteredTasks = tasksForCurrentMonth.where((task) {
+                    return task["completed"] == true;
+                  }).toList();
+                } else if (_isSelected[2]) {
+                  // Atrasadas: tareas no completadas y con fecha < hoy
+                  filteredTasks = tasksForCurrentMonth.where((task) {
+                    DateTime taskDate = (task["date"] as Timestamp).toDate();
+                    return task["completed"] == false && taskDate.isBefore(now);
+                  }).toList();
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Tareas de $currentMonth", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text(countMessage, style: TextStyle(color: Colors.grey[600])),
+                      ],
+                    ),
+                    SizedBox(height: 10),
+                    ToggleButtons(
+                      borderRadius: BorderRadius.circular(10),
+                      isSelected: _isSelected,
+                      children: [
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          child: Text("En progreso"),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          child: Text("Completadas"),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          child: Text("Atrasadas"),
+                        ),
+                      ],
+                      onPressed: (int index) => _onTogglePressed(index),
+                    ),
+                    SizedBox(height: 20),
+                    filteredTasks.isEmpty
+                        ? Center(child: Text("No hay tareas disponibles"))
+                        : Column(
+                            children: filteredTasks.map((task) {
+                              DateTime taskDate = (task["date"] as Timestamp).toDate();
+                              return TaskItem(
+                                taskId: task.id,
+                                title: task["title"],
+                                category: task["category"],
+                                priority: task["priority"],
+                                stars: _getPriorityStars(task["priority"]),
+                                dueDate: taskDate,
+                                completed: task["completed"] as bool,
+                              );
+                            }).toList().cast<Widget>(),
+                          ),
+                  ],
+                );
+              },
             ),
-          ),
-          ElevatedButton(
-            onPressed: () {},
-            child: Text("View {numero} Tareas"),
           ),
           SizedBox(height: 10),
           FloatingActionButton(
