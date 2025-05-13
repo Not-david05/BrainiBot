@@ -1,18 +1,20 @@
-
 {
   "name": "brainibot-functions",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "lint": "echo \"Skipping lint\""
+    "lint": "echo \"Skipping lint\"",
+    "start": "functions-framework --target=generateOpenAIResponse --port=$PORT"
   },
   "engines": {
     "node": "22"
   },
   "dependencies": {
+    "@google-cloud/aiplatform": "^4.1.0",
     "axios": "^1.8.4",
-    "firebase-admin": "latest", 
-    "firebase-functions": "latest", 
-    "openai": "^4.92.0"
+    "firebase-admin": "latest",
+    "firebase-functions": "latest",
+    "openai": "^4.92.0",
+    "@google-cloud/functions-framework": "^3.1.0"
   }
 }

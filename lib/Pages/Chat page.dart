@@ -2,6 +2,10 @@ import 'package:brainibot/auth/servei_auth.dart';
 import 'package:brainibot/chat/servei_chat.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+// No necesitas importar dos veces MaterialApp
+// import 'package:flutter/material.dart';
+import 'package:cloud_functions/cloud_functions.dart'; // Asegúrate de tener esta dependencia en pubspec.yaml
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ChatPage extends StatefulWidget {
   @override
@@ -16,10 +20,12 @@ class _ChatPageState extends State<ChatPage> {
 
   String? currentChatId;
   String currentChatName = "Cargando...";
+  bool _isCallingFunction = false; // Para indicar si se está llamando a la función
 
-  // --- TODAS LAS DEMÁS FUNCIONES (initState, _initializeChat, _scrollToBottom, _sendMessage, etc.) ---
-  // --- SE MANTIENEN EXACTAMENTE IGUAL QUE EN TU VERSIÓN ANTERIOR ---
-  // --- NO HAY CAMBIOS NECESARIOS EN ELLAS ---
+  // --- Instancia de Cloud Functions ---
+  // Asegúrate de que la región coincida con la de tu función si no es us-central1
+  final HttpsCallable _generateResponseCallable = FirebaseFunctions.instanceFor(region: 'us-central1')
+                                                       .httpsCallable('generateOpenAIResponse'); // Nombre exacto de tu función
 
   @override
   void initState() {
@@ -27,6 +33,7 @@ class _ChatPageState extends State<ChatPage> {
     _initializeChat();
   }
 
+  // --- _initializeChat (SIN CAMBIOS) ---
   void _initializeChat() async {
     try {
       String? idUsuariActual = ServeiAuth().getUsuariActual()?.uid;
@@ -86,6 +93,7 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  // --- _scrollToBottom (SIN CAMBIOS) ---
   void _scrollToBottom({int durationMillis = 300}) {
     if (_scrollController.hasClients && _scrollController.position.hasContentDimensions) {
        Future.delayed(Duration(milliseconds: 100), () {
@@ -100,24 +108,78 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  // --- _sendMessage (SIN CAMBIOS RESPECTO A LA LÓGICA DE LLAMADA) ---
   void _sendMessage() async {
     String message = _controller.text.trim();
-    if (message.isNotEmpty && currentChatId != null) {
+    if (message.isNotEmpty && currentChatId != null && !_isCallingFunction) {
       String messageToSend = message;
-      _controller.clear();
+      String chatIdForFunction = currentChatId!;
+
+      if(mounted) {
+        setState(() {
+           _isCallingFunction = true; // Indicar que estamos procesando
+           _controller.clear(); // Limpiar el input inmediatamente
+        });
+      }
+
       try {
-        await _serveiChat.enviarMissatge(currentChatId!, messageToSend);
-      } catch (e) {
-         print("Error al enviar mensaje desde ChatPage: $e");
-         if(mounted) { // Comprueba si el widget está montado antes de mostrar SnackBar
+        // 1. Enviar el mensaje del usuario a Firestore PRIMERO
+        await _serveiChat.enviarMissatge(chatIdForFunction, messageToSend);
+        print("Mensaje de usuario enviado a Firestore.");
+
+        // 2. Llamar a la Cloud Function para generar la respuesta del bot
+        print("Llamando a la Cloud Function 'generateOpenAIResponse'...");
+        final HttpsCallableResult result = await _generateResponseCallable.call(
+          <String, dynamic>{
+            'chatId': chatIdForFunction,
+            'message': messageToSend,
+          },
+        );
+        print("Llamada a Cloud Function completada. Resultado: ${result.data}");
+        // La Cloud Function se encarga de guardar la respuesta del bot en Firestore.
+        // No necesitamos hacer nada con result.data['response'] aquí,
+        // porque el StreamBuilder actualizará la UI cuando el nuevo mensaje del bot aparezca.
+
+      } on FirebaseFunctionsException catch (e) {
+        // Error específico de Cloud Functions
+        print("Error al llamar a Cloud Function (${e.code}): ${e.message}");
+        print("Detalls: ${e.details}");
+         if(mounted) {
              ScaffoldMessenger.of(context).showSnackBar(
-               SnackBar(content: Text('Error al enviar el mensaje: ${e.toString()}'))
+               SnackBar(content: Text('Error al contactar al asistente: ${e.message ?? "Error desconocido"}'))
              );
          }
+         // La Cloud Function debería haber guardado un mensaje de error en Firestore
+         // si el error ocurrió DENTRO de la función. Si el error fue de conexión/permisos
+         // antes de ejecutar la función, no habrá mensaje de error del bot.
+      } catch (e) {
+         // Otros errores (p.ej., al enviar el mensaje del usuario)
+         print("Error en _sendMessage: $e");
+         if(mounted) {
+             ScaffoldMessenger.of(context).showSnackBar(
+               SnackBar(content: Text('Error inesperado al enviar el mensaje: ${e.toString()}'))
+             );
+         }
+      } finally {
+         // Asegurarse de resetear el estado de carga incluso si hay error
+          if (mounted) {
+             setState(() {
+                _isCallingFunction = false;
+             });
+          }
       }
+    } else if (_isCallingFunction) {
+       print("Esperando respuesta anterior...");
+       // Opcional: Mostrar un pequeño aviso
+       if(mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('Esperando respuesta anterior...'), duration: Duration(seconds: 2),)
+         );
+       }
     }
   }
 
+  // --- _switchChat (SIN CAMBIOS) ---
   void _switchChat(String chatId, String chatName) {
      if (chatId == currentChatId) {
        Navigator.pop(context);
@@ -128,6 +190,7 @@ class _ChatPageState extends State<ChatPage> {
         currentChatId = chatId;
         currentChatName = chatName;
         _missatgesStream = _serveiChat.getMissatges(currentChatId!);
+         _isCallingFunction = false; // Resetear estado al cambiar de chat
       });
       Navigator.pop(context); // Cierra el Drawer solo si el estado se actualizó
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -138,6 +201,7 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  // --- _showCreateChatDialog (SIN CAMBIOS) ---
   void _showCreateChatDialog() {
     TextEditingController chatNameController = TextEditingController();
     showDialog(
@@ -197,6 +261,7 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
+  // --- _buildChatDrawer (SIN CAMBIOS) ---
   Widget _buildChatDrawer() {
     return Drawer(
       child: Column(
@@ -259,13 +324,22 @@ class _ChatPageState extends State<ChatPage> {
                                 await _serveiChat.deleteChat(chatId);
                                 if (chatId == currentChatId) {
                                   print("Chat actual eliminado, reinicializando...");
-                                  _initializeChat();
-                                }
-                                // Muestra SnackBar usando ScaffoldMessenger si el widget está montado
-                                if (mounted) {
-                                   ScaffoldMessenger.of(context).showSnackBar(
-                                     SnackBar(content: Text('Chat "$chatName" eliminado.'))
-                                   );
+                                  // Re-inicializa para seleccionar otro chat o crear uno nuevo
+                                   if (mounted) {
+                                      setState(() {
+                                         currentChatId = null; // Forzar estado de carga
+                                         currentChatName = "Cargando...";
+                                         _missatgesStream = Stream.empty();
+                                      });
+                                      _initializeChat();
+                                   }
+                                } else {
+                                   // Solo muestra confirmación si no estamos recargando
+                                   if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Chat "$chatName" eliminado.'))
+                                      );
+                                   }
                                 }
                              } catch (e) {
                                print("Error al eliminar chat desde drawer: $e");
@@ -302,6 +376,7 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
+  // --- _buildMessageInput (SIN CAMBIOS) ---
   Widget _buildMessageInput() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
@@ -314,32 +389,39 @@ class _ChatPageState extends State<ChatPage> {
           Expanded(
             child: TextField(
               controller: _controller,
+              enabled: !_isCallingFunction, // Deshabilitar mientras carga
               decoration: InputDecoration(
-                hintText: "Escribe tu mensaje...",
+                hintText: _isCallingFunction ? "Generando respuesta..." : "Escribe tu mensaje...",
                 filled: true,
-                fillColor: const Color.fromARGB(255, 243, 241, 241),
+                fillColor: _isCallingFunction ? Colors.grey.shade200 : const Color.fromARGB(255, 243, 241, 241),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
                 contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
                textCapitalization: TextCapitalization.sentences,
-               onSubmitted: (_) => _sendMessage(),
+               onSubmitted: _isCallingFunction ? null : (_) => _sendMessage(), // No enviar si está cargando
             ),
           ),
           SizedBox(width: 8),
-          IconButton(
-            icon: Icon(Icons.send),
-            color: Theme.of(context).primaryColor,
-            onPressed: _sendMessage,
-            tooltip: "Enviar mensaje",
-          ),
+          // Mostrar un indicador de progreso o el botón de enviar
+          _isCallingFunction
+             ? Container(
+                  width: 24, // Tamaño similar al IconButton
+                  height: 24,
+                  margin: EdgeInsets.all(12), // Margen similar al IconButton
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                )
+             : IconButton(
+                  icon: Icon(Icons.send),
+                  color: Theme.of(context).primaryColor,
+                  onPressed: _sendMessage, // Ya comprueba _isCallingFunction dentro
+                  tooltip: "Enviar mensaje",
+             ),
         ],
       ),
     );
   }
 
-
- // --- MÉTODO BUILD (CON CAMBIOS EN IDs DEL BOT DENTRO DEL StreamBuilder) ---
-
+  // --- build (MODIFICADO para usar los IDs correctos del bot: HF_Mistral_Bot y HF_Mistral_Error) ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -361,7 +443,7 @@ class _ChatPageState extends State<ChatPage> {
           ),
         ),
         actions: [
-          IconButton(icon: Icon(Icons.help_outline, color: Colors.black), tooltip: "Ayuda", onPressed: () {}),
+          // IconButton(icon: Icon(Icons.help_outline, color: Colors.black), tooltip: "Ayuda", onPressed: () {}), // Opcional
         ],
       ),
       body: Column(
@@ -384,25 +466,32 @@ class _ChatPageState extends State<ChatPage> {
                         return Center(child: Text("Error al cargar los mensajes."));
                       }
 
+                       // Scroll automático
                        WidgetsBinding.instance.addPostFrameCallback((_) {
                           if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
                              _scrollToBottom();
                           }
                        });
 
-                      if (!snapshot.hasData || snapshot.data == null || snapshot.data!.docs.isEmpty) {
-                         // Evita mostrar loading si ya estamos mostrando el estado inicial o vacío
-                        if(snapshot.connectionState == ConnectionState.waiting && currentChatId != null){
+                      if (!snapshot.hasData || snapshot.data == null) {
+                         // Mostrar indicador solo si está realmente esperando datos iniciales
+                        if(snapshot.connectionState == ConnectionState.waiting){
                            return const Center(child: CircularProgressIndicator());
                         }
-                        return Center(child: Text("Aún no hay mensajes.\n¡Empieza la conversación!", textAlign: TextAlign.center,));
+                        // Si no está esperando y no hay datos (raro, podría ser un stream vacío inicial)
+                        return Center(child: Text("Cargando mensajes...", textAlign: TextAlign.center,));
                       }
 
-                      // --- CAMBIO AQUÍ: Actualizar los IDs del bot ---
+                       if (snapshot.data!.docs.isEmpty) {
+                          // El chat existe pero no tiene mensajes
+                          return Center(child: Text("Aún no hay mensajes.\n¡Empieza la conversación!", textAlign: TextAlign.center,));
+                       }
+
+                      // --- CAMBIO AQUÍ: Usar los IDs correctos de HF_Mistral_Bot ---
                       String? idUsuariActual = ServeiAuth().getUsuariActual()?.uid;
-                      // IDs para el bot (deben coincidir con los usados en index.js y ServeiChat.dart)
-                      const String botId = "Mistral_Bot"; // <-- ACTUALIZADO
-                      const String botErrorId = "Mistral_Bot_Error"; // <-- ACTUALIZADO
+                      // IDs para el bot (deben coincidir EXACTAMENTE con los de index.js)
+                      const String botId = "HF_Mistral_Bot";         // <-- ACTUALIZADO
+                      const String botErrorId = "HF_Mistral_Error";  // <-- ACTUALIZADO
                       // -------------------------------------------
 
                       return ListView.builder(
@@ -416,10 +505,11 @@ class _ChatPageState extends State<ChatPage> {
                           String missatgeText = missatgeData["missatge"] ?? "[Mensaje vacío]";
 
                           bool isCurrentUser = (idUsuariActual != null && autorId == idUsuariActual);
+                          // Comprobar si es el bot o el mensaje de error del bot
                           bool isBot = autorId == botId; // <-- Usa la constante actualizada
                           bool isBotError = autorId == botErrorId; // <-- Usa la constante actualizada
 
-                          // El resto de la lógica de estilos condicionales permanece igual
+                          // Lógica de estilos condicionales (SIN CAMBIOS)
                           Alignment alignment;
                           Color bubbleColor;
                           Color textColor;
@@ -430,17 +520,18 @@ class _ChatPageState extends State<ChatPage> {
                             bubbleColor = Colors.purple.shade200;
                             textColor = Colors.white;
                              bubbleMargin = EdgeInsets.only(left: 60, top: 4, bottom: 4, right: 0);
-                          } else if (isBot) { // Ahora detectará "Mistral_Bot"
+                          } else if (isBot) { // Ahora detectará "HF_Mistral_Bot"
                             alignment = Alignment.centerLeft;
                             bubbleColor = Colors.grey.shade200;
                             textColor = Colors.black87;
                             bubbleMargin = EdgeInsets.only(right: 60, top: 4, bottom: 4, left: 0);
-                          } else if (isBotError) { // Ahora detectará "Mistral_Bot_Error"
+                          } else if (isBotError) { // Ahora detectará "HF_Mistral_Error"
                             alignment = Alignment.centerLeft;
                             bubbleColor = Colors.red.shade100;
                             textColor = Colors.red.shade900;
-                            bubbleMargin = EdgeInsets.only(right: 60, top: 4, bottom: 4, left: 0);
+                             bubbleMargin = EdgeInsets.only(right: 60, top: 4, bottom: 4, left: 0);
                           } else {
+                             // Mensajes inesperados (quizás de versiones anteriores o sistema)
                             alignment = Alignment.center;
                             bubbleColor = Colors.blueGrey.shade100;
                             textColor = Colors.black54;
@@ -471,7 +562,7 @@ class _ChatPageState extends State<ChatPage> {
                     },
                   ),
           ),
-          _buildMessageInput(),
+          _buildMessageInput(), // El input modificado
         ],
       ),
     );
