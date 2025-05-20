@@ -1,11 +1,18 @@
+import 'package:brainibot/Pages/Chat%20page.dart';
 import 'package:brainibot/Pages/Notifications%20settings.dart';
 import 'package:brainibot/Pages/User%20page.dart';
+import 'package:brainibot/Widgets/custom_bottom_nav_bar.dart';
+
 import 'package:brainibot/Pages/TaskC.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart'; // Para formatear la fecha
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'task_item.dart';
+
+// IMPORTA TU CUSTOM TASK MANAGER HEADER
+import 'package:brainibot/widgets/custom_app_bar.dart'; // Contiene CustomTaskManagerHeader
 
 class TaskManagerScreen extends StatefulWidget {
   @override
@@ -16,11 +23,17 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Toggle con tres opciones: 0: En progreso, 1: Completadas, 2: Atrasadas
   List<bool> _isSelected = [true, false, false];
+  final int _currentIndexInBottomNav = 1;
 
-  // Función para seleccionar el toggle
+  @override
+  void initState() {
+    super.initState();
+    initializeDateFormatting('es_ES', null);
+  }
+
   void _onTogglePressed(int index) {
+    if (!mounted) return;
     setState(() {
       for (int i = 0; i < _isSelected.length; i++) {
         _isSelected[i] = i == index;
@@ -28,207 +41,210 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> {
     });
   }
 
+  void _onBottomNavItemTapped(int index) {
+    if (_currentIndexInBottomNav == index && index == 1) return;
+
+    switch (index) {
+      case 0:
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => User_page()));
+        break;
+      case 1:
+         // Ya estamos aquí, no recargar a menos que se venga de otra ruta nombrada diferente
+        if (ModalRoute.of(context)?.settings.name != '/task_manager') {
+             Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TaskManagerScreen()));
+        }
+        break;
+      case 2:
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ChatPage()));
+        break;
+    }
+  }
+
+  // LAS FUNCIONES _performSignOut Y _performEditProfile AHORA ESTÁN EN CustomTaskManagerHeader
+  // Y SERÁN LLAMADAS DESDE ALLÍ.
+
   @override
   Widget build(BuildContext context) {
-    // Obtenemos el mes actual formateado (en español)
-    String currentMonth = DateFormat.MMMM('es').format(DateTime.now());
+    String currentMonth = DateFormat.MMMM('es_ES').format(DateTime.now());
     DateTime now = DateTime.now();
-    
+    DateTime today = DateTime(now.year, now.month, now.day);
+
     return Scaffold(
-      bottomNavigationBar: BottomNavigationBar(
-        items: [
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: "Calendario"),
-          BottomNavigationBarItem(icon: Icon(Icons.checklist), label: "Tareas"),
-          BottomNavigationBarItem(icon: Icon(Icons.smart_toy), label: "BrainiBot"),
-        ],
-      ),
       body: Column(
         children: [
-          Container(
-            padding: EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-            decoration: BoxDecoration(
-              color: Colors.purple[100],
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.arrow_back),
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => User_page(),
-                        ),
-                      ),
-                    ),
-                    Spacer(),
-                    Icon(Icons.more_vert),
-                  ],
-                ),
-                SizedBox(height: 20),
-                Text("Gestor de tareas", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                SizedBox(height: 20),
-                Row(
-                  children: [
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => NotificationSettingsScreen(),
-                          ),
-                        );
-                      },
-                      child: Text("Gestionar notificaciones"),
-                    ),
-                    SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: () {},
-                      child: Text("Next DeadLine in"),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // Eliminamos cualquier botón extra y utilizamos solo el toggle para filtrar
-          Padding(
-            padding: EdgeInsets.all(16.0),
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _firestore
-                  .collection("TareasUsers")
-                  .doc(_auth.currentUser?.uid)
-                  .collection("Tareas")
-                  .snapshots(),
-              builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
-                }
-                // Filtrar tareas del mes actual
-                final allTasks = snapshot.data?.docs ?? [];
-                final tasksForCurrentMonth = allTasks.where((task) {
-                  DateTime taskDate = (task["date"] as Timestamp).toDate();
-                  return taskDate.month == now.month && taskDate.year == now.year;
-                }).toList();
-
-                // Para el conteo general de tareas incompletas (en progreso sin tareas atrasadas)
-                final inProgressTasks = tasksForCurrentMonth.where((task) {
-                  DateTime taskDate = (task["date"] as Timestamp).toDate();
-                  return task["completed"] == false && !taskDate.isBefore(now);
-                }).toList();
-
-                String countMessage = inProgressTasks.isEmpty
-                    ? "¡Has terminado todas las tareas de este mes!"
-                    : "Hay ${inProgressTasks.length} este mes incompletas";
-
-                // Filtrar tareas según el toggle seleccionado:
-                List<dynamic> filteredTasks = [];
-                if (_isSelected[0]) {
-                  // En progreso: tareas no completadas y con fecha >= hoy
-                  filteredTasks = tasksForCurrentMonth.where((task) {
-                    DateTime taskDate = (task["date"] as Timestamp).toDate();
-                    return task["completed"] == false && !taskDate.isBefore(now);
-                  }).toList();
-                } else if (_isSelected[1]) {
-                  // Completadas: tareas marcadas como completadas
-                  filteredTasks = tasksForCurrentMonth.where((task) {
-                    return task["completed"] == true;
-                  }).toList();
-                } else if (_isSelected[2]) {
-                  // Atrasadas: tareas no completadas y con fecha < hoy
-                  filteredTasks = tasksForCurrentMonth.where((task) {
-                    DateTime taskDate = (task["date"] as Timestamp).toDate();
-                    return task["completed"] == false && taskDate.isBefore(now);
-                  }).toList();
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text("Tareas de $currentMonth", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        Text(countMessage, style: TextStyle(color: Colors.grey[600])),
-                      ],
-                    ),
-                    SizedBox(height: 10),
-                    ToggleButtons(
-                      borderRadius: BorderRadius.circular(10),
-                      isSelected: _isSelected,
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 12),
-                          child: Text("En progreso"),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 12),
-                          child: Text("Completadas"),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 12),
-                          child: Text("Atrasadas"),
-                        ),
-                      ],
-                      onPressed: (int index) => _onTogglePressed(index),
-                    ),
-                    SizedBox(height: 20),
-                    filteredTasks.isEmpty
-                        ? Center(child: Text("No hay tareas disponibles"))
-                        : Column(
-                            children: filteredTasks.map((task) {
-                              DateTime taskDate = (task["date"] as Timestamp).toDate();
-                              return TaskItem(
-                                taskId: task.id,
-                                title: task["title"],
-                                category: task["category"],
-                                priority: task["priority"],
-                                stars: _getPriorityStars(task["priority"]),
-                                dueDate: taskDate,
-                                completed: task["completed"] as bool,
-                              );
-                            }).toList().cast<Widget>(),
-                          ),
-                  ],
-                );
-              },
-            ),
-          ),
-          SizedBox(height: 10),
-          FloatingActionButton(
-            onPressed: () {
+          CustomTaskManagerHeader(
+            titleText: "Gestor de tareas",
+            pageContext: context, // Contexto de TaskManagerScreen
+            onBackButtonPressed: () {
+              _onBottomNavItemTapped(0); // Navega a UserPage (Calendario)
+            },
+            onNotificationsPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => TaskC(),
-                ),
+                MaterialPageRoute(builder: (context) => NotificationSettingsScreen()),
               );
             },
-            child: Icon(Icons.add),
-            backgroundColor: Colors.purple,
+            onNextDeadlinePressed: () {
+              // Lógica para "Next Deadline"
+              print("Next Deadline presionado");
+            },
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(16.0),
+              child: StreamBuilder<QuerySnapshot>(
+                stream: _firestore
+                    .collection("TareasUsers")
+                    .doc(_auth.currentUser?.uid)
+                    .collection("Tareas")
+                    .snapshots(),
+                builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(child: Text("Error: ${snapshot.error}"));
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(child: CircularProgressIndicator());
+                  }
+                  if (_auth.currentUser == null) {
+                     return Center(child: Text("Usuario no autenticado."));
+                  }
+
+                  final allTasks = snapshot.data?.docs ?? [];
+                  final tasksForCurrentMonth = allTasks.where((task) {
+                    if (task["date"] == null) return false;
+                    DateTime taskDate = (task["date"] as Timestamp).toDate();
+                    return taskDate.month == now.month && taskDate.year == now.year;
+                  }).toList();
+
+                  final inProgressTasksCount = tasksForCurrentMonth.where((task) {
+                     if (task["date"] == null || task["completed"] == null) return false;
+                    DateTime taskDate = (task["date"] as Timestamp).toDate();
+                    DateTime taskDayOnly = DateTime(taskDate.year, taskDate.month, taskDate.day);
+                    return task["completed"] == false && !taskDayOnly.isBefore(today);
+                  }).toList();
+
+                  String countMessage = inProgressTasksCount.isEmpty
+                      ? "¡Has terminado todas las tareas de este mes!"
+                      : "Hay ${inProgressTasksCount.length} tareas en progreso este mes.";
+
+                  List<DocumentSnapshot> filteredTasks = [];
+                  if (_isSelected[0]) { // En progreso
+                    filteredTasks = tasksForCurrentMonth.where((task) {
+                      if (task["date"] == null || task["completed"] == null) return false;
+                      DateTime taskDate = (task["date"] as Timestamp).toDate();
+                      DateTime taskDayOnly = DateTime(taskDate.year, taskDate.month, taskDate.day);
+                      return task["completed"] == false && !taskDayOnly.isBefore(today);
+                    }).toList();
+                  } else if (_isSelected[1]) { // Completadas
+                    filteredTasks = tasksForCurrentMonth.where((task) {
+                       if (task["completed"] == null) return false;
+                      return task["completed"] == true;
+                    }).toList();
+                  } else if (_isSelected[2]) { // Atrasadas
+                    filteredTasks = tasksForCurrentMonth.where((task) {
+                      if (task["date"] == null || task["completed"] == null) return false;
+                      DateTime taskDate = (task["date"] as Timestamp).toDate();
+                      DateTime taskDayOnly = DateTime(taskDate.year, taskDate.month, taskDate.day);
+                      return task["completed"] == false && taskDayOnly.isBefore(today);
+                    }).toList();
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("Tareas de $currentMonth", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          Flexible(child: Text(countMessage, style: TextStyle(color: Colors.grey[700], fontSize: 12), textAlign: TextAlign.end,)),
+                        ],
+                      ),
+                      SizedBox(height: 12),
+                      ToggleButtons(
+                        borderRadius: BorderRadius.circular(8),
+                        isSelected: _isSelected,
+                        selectedColor: Colors.white,
+                        color: Colors.purple[700],
+                        fillColor: Colors.purple[600],
+                        borderColor: Colors.purple[300],
+                        selectedBorderColor: Colors.purple[700],
+                        children: [
+                          Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text("En progreso")),
+                          Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text("Completadas")),
+                          Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text("Atrasadas")),
+                        ],
+                        onPressed: (int index) => _onTogglePressed(index),
+                      ),
+                      SizedBox(height: 20),
+                      if (filteredTasks.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40.0),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                Icon(Icons.check_circle_outline, size: 60, color: Colors.grey[400]),
+                                SizedBox(height: 10),
+                                Text("No hay tareas disponibles", style: TextStyle(color: Colors.grey[600], fontSize: 16)),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: NeverScrollableScrollPhysics(),
+                          itemCount: filteredTasks.length,
+                          itemBuilder: (context, index) {
+                            final task = filteredTasks[index];
+                            DateTime taskDate = (task["date"] as Timestamp).toDate();
+                            return TaskItem(
+                              taskId: task.id,
+                              title: task["title"] ?? "Sin título",
+                              category: task["category"] ?? "Sin categoría",
+                              priority: task["priority"] ?? "Media",
+                              stars: _getPriorityStars(task["priority"] ?? "Media"),
+                              dueDate: taskDate,
+                              completed: task["completed"] as bool? ?? false,
+                            );
+                          },
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => TaskC()),
+          ).then((_) {
+             if (mounted) setState(() {});
+          });
+        },
+        child: Icon(Icons.add, color: Colors.white),
+        backgroundColor: Colors.purple,
+        tooltip: 'Nueva Tarea',
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      bottomNavigationBar: CustomBottomNavBar(
+        currentIndex: _currentIndexInBottomNav,
+        onTap: _onBottomNavItemTapped,
       ),
     );
   }
 
   int _getPriorityStars(String priority) {
-    switch (priority) {
-      case "Urgente 5★":
-        return 5;
-      case "Alta 4★":
-        return 4;
-      case "Media 3★":
-        return 3;
-      case "Baja 2★":
-        return 2;
-      case "Opcional 1★":
-        return 1;
-      default:
-        return 0;
+    switch (priority.toLowerCase()) {
+      case "urgente 5★": case "urgente": return 5;
+      case "alta 4★": case "alta": return 4;
+      case "media 3★": case "media": return 3;
+      case "baja 2★": case "baja": return 2;
+      case "opcional 1★": case "opcional": return 1;
+      default: return 3;
     }
   }
 }

@@ -1,11 +1,14 @@
+ // Ajusta si el nombre/ruta es diferente
+import 'package:brainibot/Pages/User%20page.dart';
+import 'package:brainibot/Widgets/custom_bottom_nav_bar.dart';
+import 'package:brainibot/Widgets/task_manager_screen.dart';// Ajusta si la ruta es diferente
+ // Ajusta si el nombre/ruta es diferente
 import 'package:brainibot/auth/servei_auth.dart';
 import 'package:brainibot/chat/servei_chat.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-// No necesitas importar dos veces MaterialApp
-// import 'package:flutter/material.dart';
-import 'package:cloud_functions/cloud_functions.dart'; // Asegúrate de tener esta dependencia en pubspec.yaml
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:brainibot/Pages/editar_dades.dart'; // Para el PopupMenuButton
 
 class ChatPage extends StatefulWidget {
   @override
@@ -20,12 +23,12 @@ class _ChatPageState extends State<ChatPage> {
 
   String? currentChatId;
   String currentChatName = "Cargando...";
-  bool _isCallingFunction = false; // Para indicar si se está llamando a la función
+  bool _isCallingFunction = false;
 
-  // --- Instancia de Cloud Functions ---
-  // Asegúrate de que la región coincida con la de tu función si no es us-central1
   final HttpsCallable _generateResponseCallable = FirebaseFunctions.instanceFor(region: 'us-central1')
-                                                       .httpsCallable('generateOpenAIResponse'); // Nombre exacto de tu función
+                                                       .httpsCallable('generateOpenAIResponse');
+
+  final int _currentIndexInBottomNav = 2;
 
   @override
   void initState() {
@@ -33,528 +36,272 @@ class _ChatPageState extends State<ChatPage> {
     _initializeChat();
   }
 
-  // --- _initializeChat (SIN CAMBIOS) ---
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   void _initializeChat() async {
     try {
       String? idUsuariActual = ServeiAuth().getUsuariActual()?.uid;
       if (idUsuariActual == null) {
-         print("Error: No se pudo obtener el ID del usuario actual.");
-         if (mounted) {
-           setState(() {
-             currentChatName = "Error de autenticación";
-           });
-         }
+         if (mounted) setState(() { currentChatName = "Error de autenticación"; });
          return;
       }
-
-      CollectionReference chatsCollection = FirebaseFirestore.instance
-          .collection("UsersChat")
-          .doc(idUsuariActual)
-          .collection("Chats");
-
-      QuerySnapshot snapshot = await chatsCollection.orderBy("createdAt").get();
+      CollectionReference chatsCollection = FirebaseFirestore.instance.collection("UsersChat").doc(idUsuariActual).collection("Chats");
+      QuerySnapshot snapshot = await chatsCollection.orderBy("createdAt", descending: true).limit(1).get();
       String targetChatId;
-      String targetChatName;
-
+      String targetChatNameValue;
       if (snapshot.docs.isEmpty) {
-        print("No se encontraron chats, creando uno nuevo...");
         targetChatId = await _serveiChat.createChat(null);
          DocumentSnapshot newChatDoc = await chatsCollection.doc(targetChatId).get();
-         targetChatName = newChatDoc.exists && newChatDoc.data() != null
-             ? (newChatDoc.data() as Map<String, dynamic>)['name'] ?? "Nuevo Chat"
-             : "Nuevo Chat";
-         print("Nuevo chat creado con ID: $targetChatId y nombre: $targetChatName");
-
+         targetChatNameValue = newChatDoc.exists && newChatDoc.data() != null ? (newChatDoc.data() as Map<String, dynamic>)['name'] ?? "Nuevo Chat" : "Nuevo Chat";
       } else {
         var firstChat = snapshot.docs.first;
         targetChatId = firstChat.id;
-        targetChatName = (firstChat.data() as Map<String, dynamic>?)?['name'] ?? 'Chat';
-         print("Seleccionado chat existente con ID: $targetChatId y nombre: $targetChatName");
+        targetChatNameValue = (firstChat.data() as Map<String, dynamic>?)?['name'] ?? 'Chat';
       }
-
        if (mounted) {
-          setState(() {
-            currentChatId = targetChatId;
-            currentChatName = targetChatName;
-            _missatgesStream = _serveiChat.getMissatges(currentChatId!);
-          });
-           WidgetsBinding.instance.addPostFrameCallback((_) {
-             _scrollToBottom(durationMillis: 500);
-          });
+          setState(() { currentChatId = targetChatId; currentChatName = targetChatNameValue; _missatgesStream = _serveiChat.getMissatges(currentChatId!); });
+           WidgetsBinding.instance.addPostFrameCallback((_) { _scrollToBottom(durationMillis: 500); });
        }
-
     } catch (e) {
-       print("Error en _initializeChat: $e");
-       if (mounted) {
-         setState(() {
-            currentChatName = "Error al cargar";
-         });
-       }
+       if (mounted) setState(() { currentChatName = "Error al cargar"; });
     }
   }
 
-  // --- _scrollToBottom (SIN CAMBIOS) ---
   void _scrollToBottom({int durationMillis = 300}) {
     if (_scrollController.hasClients && _scrollController.position.hasContentDimensions) {
        Future.delayed(Duration(milliseconds: 100), () {
           if (_scrollController.hasClients && _scrollController.position.hasContentDimensions) {
-             _scrollController.animateTo(
-               _scrollController.position.maxScrollExtent,
-               duration: Duration(milliseconds: durationMillis),
-               curve: Curves.easeOut,
-             );
+             _scrollController.animateTo(_scrollController.position.maxScrollExtent, duration: Duration(milliseconds: durationMillis), curve: Curves.easeOut);
           }
        });
     }
   }
 
-  // --- _sendMessage (SIN CAMBIOS RESPECTO A LA LÓGICA DE LLAMADA) ---
   void _sendMessage() async {
     String message = _controller.text.trim();
     if (message.isNotEmpty && currentChatId != null && !_isCallingFunction) {
-      String messageToSend = message;
-      String chatIdForFunction = currentChatId!;
-
-      if(mounted) {
-        setState(() {
-           _isCallingFunction = true; // Indicar que estamos procesando
-           _controller.clear(); // Limpiar el input inmediatamente
-        });
-      }
-
+      String messageToSend = message; String chatIdForFunction = currentChatId!;
+      if(mounted) { setState(() { _isCallingFunction = true; _controller.clear(); });}
       try {
-        // 1. Enviar el mensaje del usuario a Firestore PRIMERO
         await _serveiChat.enviarMissatge(chatIdForFunction, messageToSend);
-        print("Mensaje de usuario enviado a Firestore.");
-
-        // 2. Llamar a la Cloud Function para generar la respuesta del bot
-        print("Llamando a la Cloud Function 'generateOpenAIResponse'...");
-        final HttpsCallableResult result = await _generateResponseCallable.call(
-          <String, dynamic>{
-            'chatId': chatIdForFunction,
-            'message': messageToSend,
-          },
-        );
-        print("Llamada a Cloud Function completada. Resultado: ${result.data}");
-        // La Cloud Function se encarga de guardar la respuesta del bot en Firestore.
-        // No necesitamos hacer nada con result.data['response'] aquí,
-        // porque el StreamBuilder actualizará la UI cuando el nuevo mensaje del bot aparezca.
-
+        await _generateResponseCallable.call(<String, dynamic>{ 'chatId': chatIdForFunction, 'message': messageToSend, });
       } on FirebaseFunctionsException catch (e) {
-        // Error específico de Cloud Functions
-        print("Error al llamar a Cloud Function (${e.code}): ${e.message}");
-        print("Detalls: ${e.details}");
-         if(mounted) {
-             ScaffoldMessenger.of(context).showSnackBar(
-               SnackBar(content: Text('Error al contactar al asistente: ${e.message ?? "Error desconocido"}'))
-             );
-         }
-         // La Cloud Function debería haber guardado un mensaje de error en Firestore
-         // si el error ocurrió DENTRO de la función. Si el error fue de conexión/permisos
-         // antes de ejecutar la función, no habrá mensaje de error del bot.
+         if(mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error Asistente: ${e.message}'))); }
       } catch (e) {
-         // Otros errores (p.ej., al enviar el mensaje del usuario)
-         print("Error en _sendMessage: $e");
-         if(mounted) {
-             ScaffoldMessenger.of(context).showSnackBar(
-               SnackBar(content: Text('Error inesperado al enviar el mensaje: ${e.toString()}'))
-             );
-         }
+         if(mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}'))); }
       } finally {
-         // Asegurarse de resetear el estado de carga incluso si hay error
-          if (mounted) {
-             setState(() {
-                _isCallingFunction = false;
-             });
-          }
+          if (mounted) { setState(() { _isCallingFunction = false; });}
       }
     } else if (_isCallingFunction) {
-       print("Esperando respuesta anterior...");
-       // Opcional: Mostrar un pequeño aviso
-       if(mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('Esperando respuesta anterior...'), duration: Duration(seconds: 2),)
-         );
-       }
+       if(mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Esperando respuesta...'), duration: Duration(seconds: 2)));}
     }
   }
 
-  // --- _switchChat (SIN CAMBIOS) ---
-  void _switchChat(String chatId, String chatName) {
-     if (chatId == currentChatId) {
-       Navigator.pop(context);
-       return;
-     }
+  void _switchChat(String chatId, String chatNameValue) {
+     if (chatId == currentChatId) { if (Navigator.canPop(context)) Navigator.pop(context); return; }
     if (mounted){
-      setState(() {
-        currentChatId = chatId;
-        currentChatName = chatName;
-        _missatgesStream = _serveiChat.getMissatges(currentChatId!);
-         _isCallingFunction = false; // Resetear estado al cambiar de chat
-      });
-      Navigator.pop(context); // Cierra el Drawer solo si el estado se actualizó
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-          _scrollToBottom(durationMillis: 100);
-       });
-    } else {
-         Navigator.pop(context); // Cierra el drawer aunque no se pueda actualizar estado
-    }
+      setState(() { currentChatId = chatId; currentChatName = chatNameValue; _missatgesStream = _serveiChat.getMissatges(currentChatId!); _isCallingFunction = false; });
+      if (Navigator.canPop(context)) Navigator.pop(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) { _scrollToBottom(durationMillis: 100); });
+    } else { if (Navigator.canPop(context)) Navigator.pop(context); }
   }
 
-  // --- _showCreateChatDialog (SIN CAMBIOS) ---
   void _showCreateChatDialog() {
     TextEditingController chatNameController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("Crear Nuevo Chat"),
-          content: TextField(
-            controller: chatNameController,
-            decoration: InputDecoration(hintText: "Nombre del chat (opcional)"),
-             textCapitalization: TextCapitalization.sentences,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text("Cancelar"),
-            ),
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                String? nameInput = chatNameController.text.trim();
-                if (nameInput.isEmpty) nameInput = null;
-
-                try {
-                   String? userId = ServeiAuth().getUsuariActual()?.uid;
-                   if (userId == null) throw Exception("Usuario no autenticado");
-
+    showDialog(context: context, builder: (contextDialog) {
+        return AlertDialog(title: Text("Crear Nuevo Chat"), content: TextField( controller: chatNameController, decoration: InputDecoration(hintText: "Nombre del chat (opcional)"), textCapitalization: TextCapitalization.sentences,),
+          actions: [ TextButton(onPressed: () => Navigator.pop(contextDialog), child: Text("Cancelar")),
+            TextButton(onPressed: () async { Navigator.pop(contextDialog); String? nameInput = chatNameController.text.trim(); if (nameInput.isEmpty) nameInput = null;
+                try { String? userId = ServeiAuth().getUsuariActual()?.uid; if (userId == null) throw Exception("Usuario no autenticado");
                    String newChatId = await _serveiChat.createChat(nameInput);
-                   DocumentSnapshot newChatDoc = await FirebaseFirestore.instance
-                       .collection("UsersChat")
-                       .doc(userId)
-                       .collection("Chats")
-                       .doc(newChatId)
-                       .get();
-
-                   String newChatName = "Nuevo Chat";
-                   if (newChatDoc.exists && newChatDoc.data() != null) {
-                      newChatName = (newChatDoc.data() as Map<String, dynamic>)['name'] ?? newChatName;
-                   }
-
-                   _switchChat(newChatId, newChatName);
-
-                 } catch (e) {
-                    print("Error al crear chat: $e");
-                    if(mounted) { // Comprueba antes de mostrar SnackBar
-                      ScaffoldMessenger.of(context).showSnackBar(
-                         SnackBar(content: Text('Error al crear el chat: ${e.toString()}'))
-                      );
-                    }
-                 }
-              },
-              child: Text("Crear"),
-            ),
-          ],
-        );
-      },
-    );
+                   DocumentSnapshot newChatDoc = await FirebaseFirestore.instance.collection("UsersChat").doc(userId).collection("Chats").doc(newChatId).get();
+                   String newChatNameValue = "Nuevo Chat"; if (newChatDoc.exists && newChatDoc.data() != null) { newChatNameValue = (newChatDoc.data() as Map<String, dynamic>)['name'] ?? newChatNameValue;}
+                   _switchChat(newChatId, newChatNameValue);
+                 } catch (e) { if(mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al crear chat: ${e.toString()}'))); }}
+              }, child: Text("Crear"),),
+          ],);},);
   }
 
-  // --- _buildChatDrawer (SIN CAMBIOS) ---
   Widget _buildChatDrawer() {
-    return Drawer(
-      child: Column(
-        children: [
-          DrawerHeader(
-            decoration: BoxDecoration(color: Theme.of(context).primaryColor.withOpacity(0.1)),
-            child: Text("Mis Chats", style: TextStyle(fontSize: 24, color: Theme.of(context).primaryColorDark)),
-          ),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _serveiChat.getChats(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                   print("Error en stream de chats: ${snapshot.error}");
-                  return Center(child: Text("Error al cargar chats."));
-                }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(child: Text("No tienes chats aún.\n¡Crea uno nuevo!"));
-                }
-                return ListView.builder(
-                  itemCount: snapshot.data!.docs.length,
-                  itemBuilder: (context, index) {
-                    DocumentSnapshot chatDoc = snapshot.data!.docs[index];
-                    Map<String, dynamic> chatData = chatDoc.data() as Map<String, dynamic>? ?? {};
-                    String chatId = chatDoc.id;
-                    String chatName = chatData["name"] ?? "Sin nombre";
-
-                    return ListTile(
-                      title: Text(chatName, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      selected: chatId == currentChatId,
-                      selectedTileColor: Colors.purple.withOpacity(0.1),
-                      leading: Icon(Icons.chat_bubble_outline, color: chatId == currentChatId ? Colors.purple : Colors.grey),
-                      trailing: IconButton(
-                        icon: Icon(Icons.delete_outline, color: Colors.grey.shade600),
-                        tooltip: "Eliminar chat",
+    return Drawer(child: Column(children: [ DrawerHeader(decoration: BoxDecoration(color: Colors.purple.shade50.withOpacity(0.7)), child: Center(child: Text("Mis Chats", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.purple.shade700,),),),),
+          Expanded(child: StreamBuilder<QuerySnapshot>(stream: _serveiChat.getChats(), builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) return Center(child: CircularProgressIndicator());
+                if (snapshot.hasError) return Center(child: Text("Error al cargar chats."));
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return Center(child: Padding(padding: const EdgeInsets.all(16.0), child: Text("No tienes chats aún.\n¡Crea uno nuevo para empezar!", textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey.shade600),),));
+                return ListView.separated(itemCount: snapshot.data!.docs.length, separatorBuilder: (context, index) => Divider(height: 1, indent: 16, endIndent: 16), itemBuilder: (context, index) {
+                    DocumentSnapshot chatDoc = snapshot.data!.docs[index]; Map<String, dynamic> chatData = chatDoc.data() as Map<String, dynamic>? ?? {}; String chatId = chatDoc.id; String chatNameValue = chatData["name"] ?? "Sin nombre";
+                    return ListTile(title: Text(chatNameValue, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w500)), selected: chatId == currentChatId, selectedTileColor: Colors.purple.withOpacity(0.1), leading: Icon(Icons.chat_bubble_outline, color: chatId == currentChatId ? Colors.purple.shade600 : Colors.grey.shade500, size: 22),
+                      trailing: IconButton( icon: Icon(Icons.delete_outline, color: Colors.grey.shade500, size: 22), tooltip: "Eliminar chat",
                         onPressed: () async {
-                          bool confirmDelete = await showDialog<bool>(
-                              context: context,
-                              builder: (BuildContext context) {
-                                return AlertDialog(
-                                  title: Text('Eliminar Chat'),
-                                  content: Text('¿Estás seguro de que quieres eliminar "$chatName" y todos sus mensajes permanentemente?'),
-                                  actions: <Widget>[
-                                    TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text('Cancelar')),
-                                    TextButton(onPressed: () => Navigator.of(context).pop(true), child: Text('Eliminar', style: TextStyle(color: Colors.red))),
-                                  ],
-                                );
-                              },
-                            ) ?? false;
-
+                          bool confirmDelete = await showDialog<bool>(context: context, builder: (BuildContext dialogContext) { return AlertDialog( title: Text('Eliminar Chat'), content: Text('¿Seguro que quieres eliminar "$chatNameValue"?'), actions: <Widget>[ TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: Text('Cancelar')), TextButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: Text('Eliminar', style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold))),],);},) ?? false;
                           if (confirmDelete) {
-                            // Cierra el drawer ANTES de la operación async para evitar problemas de contexto
-                            if (Navigator.canPop(context)){
-                                Navigator.pop(context);
-                            }
-                             try {
-                                await _serveiChat.deleteChat(chatId);
-                                if (chatId == currentChatId) {
-                                  print("Chat actual eliminado, reinicializando...");
-                                  // Re-inicializa para seleccionar otro chat o crear uno nuevo
-                                   if (mounted) {
-                                      setState(() {
-                                         currentChatId = null; // Forzar estado de carga
-                                         currentChatName = "Cargando...";
-                                         _missatgesStream = Stream.empty();
-                                      });
-                                      _initializeChat();
-                                   }
-                                } else {
-                                   // Solo muestra confirmación si no estamos recargando
-                                   if (mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Chat "$chatName" eliminado.'))
-                                      );
-                                   }
-                                }
-                             } catch (e) {
-                               print("Error al eliminar chat desde drawer: $e");
-                               if (mounted) {
-                                 ScaffoldMessenger.of(context).showSnackBar(
-                                   SnackBar(content: Text('Error al eliminar el chat.'))
-                                 );
-                               }
-                             }
+                            final scaffoldState = Scaffold.maybeOf(context); if (scaffoldState?.isDrawerOpen ?? false) { Navigator.of(context).pop();}
+                             try { await _serveiChat.deleteChat(chatId);
+                                if (chatId == currentChatId) { if (mounted) { setState(() { currentChatId = null; currentChatName = "Cargando..."; _missatgesStream = Stream.empty(); }); _initializeChat();}}
+                                else { if (mounted) {ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text('Chat "$chatNameValue" eliminado.')));}}
+                             } catch (e) { if (mounted) {ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text('Error al eliminar.')));}}
                           }
-                        },
-                      ),
-                      onTap: () {
-                        _switchChat(chatId, chatName);
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          Divider(),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: ElevatedButton.icon(
-              icon: Icon(Icons.add_comment_outlined),
-              label: Text("Nuevo Chat"),
-              style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 40)),
-              onPressed: _showCreateChatDialog,
-            ),
-          ),
-        ],
-      ),
-    );
+                        },), onTap: () { _switchChat(chatId, chatNameValue); },);},);},),),
+          Divider(height: 1), Padding(padding: const EdgeInsets.all(12.0), child: ElevatedButton.icon(icon: Icon(Icons.add_comment_outlined, size: 20), label: Text("Nuevo Chat", style: TextStyle(fontSize: 15)), style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade500, foregroundColor: Colors.white, minimumSize: Size(double.infinity, 44), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), elevation: 2,), onPressed: _showCreateChatDialog,),),
+        ],),);
   }
 
-  // --- _buildMessageInput (SIN CAMBIOS) ---
   Widget _buildMessageInput() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-       decoration: BoxDecoration(
-         color: Theme.of(context).cardColor,
-         boxShadow: [ BoxShadow(offset: Offset(0,-1), blurRadius: 4, color: Colors.black.withOpacity(0.05)) ]
-       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              enabled: !_isCallingFunction, // Deshabilitar mientras carga
-              decoration: InputDecoration(
-                hintText: _isCallingFunction ? "Generando respuesta..." : "Escribe tu mensaje...",
-                filled: true,
-                fillColor: _isCallingFunction ? Colors.grey.shade200 : const Color.fromARGB(255, 243, 241, 241),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
-                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
-               textCapitalization: TextCapitalization.sentences,
-               onSubmitted: _isCallingFunction ? null : (_) => _sendMessage(), // No enviar si está cargando
-            ),
-          ),
-          SizedBox(width: 8),
-          // Mostrar un indicador de progreso o el botón de enviar
-          _isCallingFunction
-             ? Container(
-                  width: 24, // Tamaño similar al IconButton
-                  height: 24,
-                  margin: EdgeInsets.all(12), // Margen similar al IconButton
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                )
-             : IconButton(
-                  icon: Icon(Icons.send),
-                  color: Theme.of(context).primaryColor,
-                  onPressed: _sendMessage, // Ya comprueba _isCallingFunction dentro
-                  tooltip: "Enviar mensaje",
-             ),
-        ],
-      ),
-    );
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0), decoration: BoxDecoration(color: Theme.of(context).scaffoldBackgroundColor, boxShadow: [ BoxShadow(offset: Offset(0,-1), blurRadius: 3, color: Colors.black.withOpacity(0.04)) ]),
+      child: Row(children: [ Expanded(child: TextField(controller: _controller, enabled: !_isCallingFunction, decoration: InputDecoration(hintText: _isCallingFunction ? "Generando respuesta..." : "Escribe tu mensaje...", filled: true, fillColor: _isCallingFunction ? Colors.grey.shade200 : Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide(color: Colors.grey.shade300)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide(color: Colors.grey.shade300)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide(color: Colors.purple.shade300, width: 1.5)), contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 12),), textCapitalization: TextCapitalization.sentences, onSubmitted: _isCallingFunction ? null : (_) => _sendMessage(),),),
+          SizedBox(width: 10), _isCallingFunction ? Container(width: 44, height: 44, padding: EdgeInsets.all(10), child: CircularProgressIndicator(strokeWidth: 2.5, valueColor: AlwaysStoppedAnimation<Color>(Colors.purple.shade500)),)
+             : IconButton(icon: Icon(Icons.send_rounded), iconSize: 26, style: IconButton.styleFrom(backgroundColor: Colors.purple.shade500, foregroundColor: Colors.white, padding: EdgeInsets.all(10),), onPressed: _sendMessage, tooltip: "Enviar mensaje",),
+        ],),);
   }
 
-  // --- build (MODIFICADO para usar los IDs correctos del bot: HF_Mistral_Bot y HF_Mistral_Error) ---
+  void _onBottomNavItemTapped(int index) {
+    if (_currentIndexInBottomNav == index && index == 2) return;
+    switch (index) {
+      case 0: Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => User_page())); break;
+      case 1: Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TaskManagerScreen())); break;
+      case 2: if (ModalRoute.of(context)?.settings.name != '/chat') { Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ChatPage()));} break;
+    }
+  }
+
+  // Funciones para el PopupMenu (necesarias si no usamos CustomAppBar completa aquí)
+  Future<void> _performSignOut(BuildContext passedContext) async {
+    try {
+      await ServeiAuth().ferLogout();
+      print("Sesión cerrada desde ChatPage");
+      // Opcional: Navegar a login
+      // Navigator.of(passedContext).pushAndRemoveUntil(MaterialPageRoute(builder: (c) => LoginPage()), (route) => false);
+    } catch (e) {
+      print("Error al cerrar sesión desde ChatPage: $e");
+       if (mounted && ScaffoldMessenger.of(passedContext).mounted) {
+        ScaffoldMessenger.of(passedContext).showSnackBar(
+          SnackBar(content: Text("Error al cerrar sesión: $e"))
+        );
+      }
+    }
+  }
+
+  void _performEditProfile(BuildContext passedContext) {
+    Navigator.push(
+      passedContext,
+      MaterialPageRoute(builder: (context) => EditarDades()),
+    ).then((_) {
+      // Lógica de recarga si es necesario
+    });
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       drawer: _buildChatDrawer(),
-      backgroundColor: Color(0xFFF4EAF8),
-      appBar: AppBar(
-        backgroundColor: Color(0xFFF4EAF8),
-        elevation: 0,
+      backgroundColor: Color(0xFFFBF7FF),
+      appBar: AppBar( // AppBar estándar de Flutter
+        backgroundColor: Color(0xFFF4EAF8), // Color de fondo
+        elevation: 0, // Sin sombra
         title: Text(
           currentChatName,
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.w500),
           overflow: TextOverflow.ellipsis,
         ),
+        // Leading para abrir el Drawer (funciona porque está en el mismo Scaffold)
         leading: Builder(
-          builder: (context) => IconButton(
-            icon: Icon(Icons.menu, color: Colors.black),
-            tooltip: "Abrir menú de chats",
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
+          builder: (BuildContext scaffoldContext) {
+            return IconButton(
+              icon: Icon(Icons.menu, color: Colors.black),
+              tooltip: "Abrir menú de chats",
+              onPressed: () {
+                Scaffold.of(scaffoldContext).openDrawer();
+              },
+            );
+          },
         ),
         actions: [
-          // IconButton(icon: Icon(Icons.help_outline, color: Colors.black), tooltip: "Ayuda", onPressed: () {}), // Opcional
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: Colors.black),
+            tooltip: "Opciones",
+            onSelected: (value) {
+              // Usar el 'context' del build principal de _ChatPageState para las acciones
+              if (value == 'logout') {
+                _performSignOut(context);
+              } else if (value == 'editar') {
+                _performEditProfile(context);
+              }
+            },
+            itemBuilder: (BuildContext popupContext) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'editar',
+                child: Text('Editar perfil'),
+              ),
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Text('Logout'),
+              ),
+            ],
+          ),
+          SizedBox(width: 4),
         ],
       ),
       body: Column(
         children: [
           Expanded(
             child: currentChatId == null
-                ? Center(child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                       CircularProgressIndicator(),
-                       SizedBox(height: 10),
-                       Text("Cargando chat...")
-                    ],
-                 ))
+                ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [CircularProgressIndicator(), SizedBox(height: 16), Text("Cargando chat...", style: TextStyle(fontSize: 16, color: Colors.grey.shade700))]))
                 : StreamBuilder<QuerySnapshot>(
                     stream: _missatgesStream,
                     builder: (context, snapshot) {
-                      if (snapshot.hasError) {
-                        print("Error en StreamBuilder de mensajes: ${snapshot.error}");
-                        return Center(child: Text("Error al cargar los mensajes."));
-                      }
-
-                       // Scroll automático
-                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-                             _scrollToBottom();
-                          }
-                       });
-
-                      if (!snapshot.hasData || snapshot.data == null) {
-                         // Mostrar indicador solo si está realmente esperando datos iniciales
-                        if(snapshot.connectionState == ConnectionState.waiting){
-                           return const Center(child: CircularProgressIndicator());
-                        }
-                        // Si no está esperando y no hay datos (raro, podría ser un stream vacío inicial)
-                        return Center(child: Text("Cargando mensajes...", textAlign: TextAlign.center,));
-                      }
-
-                       if (snapshot.data!.docs.isEmpty) {
-                          // El chat existe pero no tiene mensajes
-                          return Center(child: Text("Aún no hay mensajes.\n¡Empieza la conversación!", textAlign: TextAlign.center,));
-                       }
-
-                      // --- CAMBIO AQUÍ: Usar los IDs correctos de HF_Mistral_Bot ---
+                      if (snapshot.hasError) return Center(child: Text("Error al cargar los mensajes.", style: TextStyle(color: Colors.red.shade700)));
+                      WidgetsBinding.instance.addPostFrameCallback((_) { if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) { _scrollToBottom(); }});
+                      if (!snapshot.hasData || snapshot.data == null) { if(snapshot.connectionState == ConnectionState.waiting){ return const Center(child: CircularProgressIndicator());} return Center(child: Text("Cargando mensajes...", textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey.shade700)));}
+                      if (snapshot.data!.docs.isEmpty) return Center(child: Padding(padding: const EdgeInsets.all(20.0), child: Text("Aún no hay mensajes.\n¡Empieza la conversación!", textAlign: TextAlign.center, style: TextStyle(fontSize: 17, color: Colors.grey.shade700, height: 1.5))));
+                      
                       String? idUsuariActual = ServeiAuth().getUsuariActual()?.uid;
-                      // IDs para el bot (deben coincidir EXACTAMENTE con los de index.js)
-                      const String botId = "HF_Mistral_Bot";         // <-- ACTUALIZADO
-                      const String botErrorId = "HF_Mistral_Error";  // <-- ACTUALIZADO
-                      // -------------------------------------------
+                      const String botId = "HF_Mistral_Bot";
+                      const String botErrorId = "HF_Mistral_Error";
 
                       return ListView.builder(
                         controller: _scrollController,
-                        padding: EdgeInsets.all(16.0),
+                        padding: EdgeInsets.symmetric(horizontal: 10.0, vertical: 16.0),
                         itemCount: snapshot.data!.docs.length,
                         itemBuilder: (context, index) {
-                          var doc = snapshot.data!.docs[index];
-                          Map<String, dynamic> missatgeData = doc.data() as Map<String, dynamic>? ?? {};
-                          String autorId = missatgeData["idAutor"] ?? "";
-                          String missatgeText = missatgeData["missatge"] ?? "[Mensaje vacío]";
-
-                          bool isCurrentUser = (idUsuariActual != null && autorId == idUsuariActual);
-                          // Comprobar si es el bot o el mensaje de error del bot
-                          bool isBot = autorId == botId; // <-- Usa la constante actualizada
-                          bool isBotError = autorId == botErrorId; // <-- Usa la constante actualizada
-
-                          // Lógica de estilos condicionales (SIN CAMBIOS)
-                          Alignment alignment;
-                          Color bubbleColor;
-                          Color textColor;
-                          EdgeInsets bubbleMargin = EdgeInsets.symmetric(vertical: 4);
+                          var doc = snapshot.data!.docs[index]; Map<String, dynamic> missatgeData = doc.data() as Map<String, dynamic>? ?? {}; String autorId = missatgeData["idAutor"] ?? ""; String missatgeText = missatgeData["missatge"] ?? "[Mensaje vacío]";
+                          bool isCurrentUser = (idUsuariActual != null && autorId == idUsuariActual); bool isBot = autorId == botId; bool isBotError = autorId == botErrorId;
+                          Alignment alignment; Color bubbleColor; Color textColor; EdgeInsets bubbleMargin = EdgeInsets.symmetric(vertical: 5);
 
                           if (isCurrentUser) {
-                            alignment = Alignment.centerRight;
-                            bubbleColor = Colors.purple.shade200;
-                            textColor = Colors.white;
-                             bubbleMargin = EdgeInsets.only(left: 60, top: 4, bottom: 4, right: 0);
-                          } else if (isBot) { // Ahora detectará "HF_Mistral_Bot"
-                            alignment = Alignment.centerLeft;
-                            bubbleColor = Colors.grey.shade200;
-                            textColor = Colors.black87;
-                            bubbleMargin = EdgeInsets.only(right: 60, top: 4, bottom: 4, left: 0);
-                          } else if (isBotError) { // Ahora detectará "HF_Mistral_Error"
-                            alignment = Alignment.centerLeft;
-                            bubbleColor = Colors.red.shade100;
-                            textColor = Colors.red.shade900;
-                             bubbleMargin = EdgeInsets.only(right: 60, top: 4, bottom: 4, left: 0);
+                            alignment = Alignment.centerRight; bubbleColor = Colors.purple.shade400; textColor = Colors.white;
+                            bubbleMargin = EdgeInsets.only(left: 70, top: 5, bottom: 5, right: 0);
+                          } else if (isBot) {
+                            alignment = Alignment.centerLeft; bubbleColor = Color(0xFFECEFF1); textColor = Colors.black87;
+                            bubbleMargin = EdgeInsets.only(right: 70, top: 5, bottom: 5, left: 0);
+                          } else if (isBotError) {
+                            alignment = Alignment.centerLeft; bubbleColor = Colors.red.shade50; textColor = Colors.red.shade800;
+                            bubbleMargin = EdgeInsets.only(right: 70, top: 5, bottom: 5, left: 0);
                           } else {
-                             // Mensajes inesperados (quizás de versiones anteriores o sistema)
-                            alignment = Alignment.center;
-                            bubbleColor = Colors.blueGrey.shade100;
-                            textColor = Colors.black54;
+                            alignment = Alignment.center; bubbleColor = Colors.blueGrey.shade50; textColor = Colors.blueGrey.shade700;
+                            bubbleMargin = EdgeInsets.symmetric(horizontal: 40, vertical: 8);
                           }
 
                           return Align(
                             alignment: alignment,
                             child: Container(
                               margin: bubbleMargin,
-                              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
                               decoration: BoxDecoration(
                                 color: bubbleColor,
                                 borderRadius: BorderRadius.only(
-                                   topLeft: Radius.circular(16), topRight: Radius.circular(16),
-                                   bottomLeft: isCurrentUser ? Radius.circular(16) : Radius.circular(4),
-                                   bottomRight: isCurrentUser ? Radius.circular(4) : Radius.circular(16),
+                                   topLeft: Radius.circular(18), topRight: Radius.circular(18),
+                                   bottomLeft: isCurrentUser ? Radius.circular(18) : Radius.circular(6),
+                                   bottomRight: isCurrentUser ? Radius.circular(6) : Radius.circular(18),
                                 ),
-                                 boxShadow: [ BoxShadow(offset: Offset(0,1), blurRadius: 2, color: Colors.black.withOpacity(0.1)) ]
+                                 boxShadow: [ BoxShadow(offset: Offset(0,1.5), blurRadius: 2.5, color: Colors.black.withOpacity(0.08)) ]
                               ),
-                              child: Text(
-                                missatgeText,
-                                style: TextStyle( color: textColor, fontSize: 15,),
-                              ),
+                              child: Text(missatgeText, style: TextStyle( color: textColor, fontSize: 15.5, height: 1.3)),
                             ),
                           );
                         },
@@ -562,8 +309,12 @@ class _ChatPageState extends State<ChatPage> {
                     },
                   ),
           ),
-          _buildMessageInput(), // El input modificado
+          _buildMessageInput(),
         ],
+      ),
+      bottomNavigationBar: CustomBottomNavBar(
+        currentIndex: _currentIndexInBottomNav,
+        onTap: _onBottomNavItemTapped,
       ),
     );
   }
