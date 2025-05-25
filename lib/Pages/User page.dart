@@ -1,32 +1,21 @@
+// Preferiblemente renombrar el archivo a algo como dashboard_screen.dart
 import 'package:brainibot/Pages/Chat%20page.dart';
-import 'package:brainibot/Pages/Starter.dart'; // Para navegar a Gestor de Tareas (si es diferente a TaskManagerScreen)
-import 'package:brainibot/Pages/TaskC.dart'; // Para el botón "Nueva Tarea" si se mantiene
-import 'package:brainibot/Pages/editar_dades.dart';
+import 'package:brainibot/Pages/TaskC.dart';
+import 'package:brainibot/Widgets/custom_app_bar.dart';
 import 'package:brainibot/Widgets/custom_bottom_nav_bar.dart';
 import 'package:brainibot/Widgets/task_manager_screen.dart';
+import 'package:brainibot/themes/app_colors.dart'; // Importa tus AppColors
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
-// IMPORTA TU CUSTOM APP BAR
-import 'package:brainibot/Widgets/custom_app_bar.dart'; // Asumiendo que CustomAppBar está en 'widgets'
+// Asegúrate de importar esto si no lo has hecho ya en main.dart para localizar el calendario
+// import 'package:intl/date_symbol_data_local.dart';
 
-// Si User_page es la raíz de tu app, este MaterialApp está bien.
-class User_page extends StatelessWidget { // Nombre de clase User_page
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: DashboardScreen(),
-      routes: {
-        '/task_manager': (context) => TaskManagerScreen(),
-        '/chat': (context) => ChatPage(),
-      },
-    );
-  }
-}
 
 class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({super.key});
+
   @override
   _DashboardScreenState createState() => _DashboardScreenState();
 }
@@ -38,9 +27,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
 
-  final TextEditingController _nombreController = TextEditingController();
-  final TextEditingController _apellidosController = TextEditingController();
-
   User? currentUser = FirebaseAuth.instance.currentUser;
   String firstName = "";
   String lastName = "";
@@ -48,14 +34,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    // Si no lo has hecho en main.dart, podrías hacerlo aquí, pero es mejor en main.
+    // initializeDateFormatting('es_ES', null);
     _loadUserData();
-  }
-
-  @override
-  void dispose() {
-    _nombreController.dispose();
-    _apellidosController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadUserData() async {
@@ -74,8 +55,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             setState(() {
               firstName = data["nombre"] ?? "";
               lastName = data["apellidos"] ?? "";
-              _nombreController.text = firstName;
-              _apellidosController.text = lastName;
             });
           }
         }
@@ -94,20 +73,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     switch (index) {
       case 0:
-        if (ModalRoute.of(context)?.settings.name != '/') {
-            Navigator.pushAndRemoveUntil(
+        if (_currentIndex != index && mounted) {
+          setState(() { _currentIndex = index; });
+        } else if (ModalRoute.of(context)?.settings.name != '/') {
+             Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (context) => DashboardScreen()), // Asumiendo que DashboardScreen es la home de User_page
+                MaterialPageRoute(builder: (context) => const DashboardScreen()),
                 (Route<dynamic> route) => false,
             );
-        } else {
-            if (mounted) setState(() { _currentIndex = index; });
         }
         break;
       case 1:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => TaskManagerScreen()),
+          MaterialPageRoute(builder: (context) =>  TaskManagerScreen()),
         );
         break;
       case 2:
@@ -120,29 +99,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildUserPageDrawer() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    String userInitial = "U";
+    if (firstName.isNotEmpty) {
+      userInitial = firstName.substring(0, 1).toUpperCase();
+    } else if (currentUser?.email?.isNotEmpty == true) {
+      userInitial = currentUser!.email!.substring(0, 1).toUpperCase();
+    }
+
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
         children: <Widget>[
           UserAccountsDrawerHeader(
-            accountName: Text(firstName.isNotEmpty ? firstName : "Usuario"),
-            accountEmail: Text(currentUser?.email ?? "No email"),
+            accountName: Text(
+              firstName.isNotEmpty ? firstName : "Usuario",
+              style: TextStyle(color: colorScheme.onPrimary),
+            ),
+            accountEmail: Text(
+              currentUser?.email ?? "No email",
+              style: TextStyle(color: colorScheme.onPrimary.withOpacity(0.85)),
+            ),
             currentAccountPicture: CircleAvatar(
-              backgroundColor: Colors.purple.shade300,
+              backgroundColor: colorScheme.onPrimary,
               child: Text(
-                firstName.isNotEmpty
-                    ? firstName.substring(0, 1).toUpperCase()
-                    : (currentUser?.email?.isNotEmpty == true ? currentUser!.email!.substring(0, 1).toUpperCase() : "U"),
-                style: TextStyle(fontSize: 40.0, color: Colors.white),
+                userInitial,
+                style: TextStyle(fontSize: 40.0, color: colorScheme.primary),
               ),
             ),
             decoration: BoxDecoration(
-              color: Colors.purple.shade100,
+              color: colorScheme.primary,
             ),
           ),
           ListTile(
-            leading: Icon(Icons.settings),
-            title: Text('Configuración (Ejemplo)'),
+            leading: Icon(Icons.settings, color: theme.iconTheme.color),
+            title: Text('Configuración (Ejemplo)', style: theme.textTheme.bodyLarge),
             onTap: () {
               Navigator.pop(context);
             },
@@ -155,38 +148,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
+    String avatarText = "";
+    if (currentUser?.photoURL == null) {
+      if (firstName.isNotEmpty) {
+        avatarText = firstName.substring(0, 1).toUpperCase();
+      } else if (currentUser?.email?.isNotEmpty == true && currentUser!.email!.isNotEmpty) {
+        avatarText = currentUser!.email!.substring(0, 1).toUpperCase();
+      } else {
+        avatarText = "U";
+      }
+    }
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF4EAF8),
+      backgroundColor: AppColors.brainiBotPink, // Color(0xFFF4EAF8) - Fondo rosa específico
+      
       appBar: CustomAppBar(
         titleText: "BrainiBot",
         pageContext: context,
-        // **** CORRECCIÓN AQUÍ: Cambiar leadingType a leadingWidget ****
-        leadingWidget: Builder( // Usar Builder para obtener el contexto correcto para Scaffold.of
+        leadingWidget: Builder( 
           builder: (BuildContext scaffoldContext) {
             return IconButton(
-              icon: Icon(Icons.menu, color: Colors.black),
+              icon: const Icon(Icons.menu),
               tooltip: "Abrir menú",
               onPressed: () {
-                // Usar el scaffoldContext del Builder para encontrar el Scaffold de esta página
-                final scaffold = Scaffold.maybeOf(scaffoldContext);
-                if (scaffold != null && scaffold.hasDrawer) {
-                  scaffold.openDrawer();
-                } else {
-                   print("Drawer no encontrado por el Builder del leadingWidget en UserPage.");
-                }
+                Scaffold.maybeOf(scaffoldContext)?.openDrawer();
               },
             );
           },
         ),
-        // **** FIN DE LA CORRECCIÓN ****
       ),
       drawer: _buildUserPageDrawer(),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.all(16.0),
           child: Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 4,
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -197,133 +196,171 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     children: [
                       CircleAvatar(
                         radius: 24,
-                        backgroundColor: Colors.purple.shade100,
+                        backgroundColor: colorScheme.primaryContainer,
                         backgroundImage: currentUser?.photoURL != null
                             ? NetworkImage(currentUser!.photoURL!)
                             : null,
                         child: currentUser?.photoURL == null
                             ? Text(
-                                firstName.isNotEmpty
-                                    ? firstName.substring(0, 1).toUpperCase()
-                                    : (currentUser?.email?.isNotEmpty == true ? currentUser!.email!.substring(0, 1).toUpperCase() : ""),
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.black54),
+                                avatarText,
+                                style: textTheme.titleLarge?.copyWith(color: colorScheme.onPrimaryContainer),
                               )
                             : null,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(firstName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis),
-                            Text(lastName, style: const TextStyle(color: Colors.grey), overflow: TextOverflow.ellipsis),
+                            Text(
+                              firstName.isNotEmpty ? firstName : "Nombre",
+                              style: textTheme.titleMedium,
+                              overflow: TextOverflow.ellipsis
+                            ),
+                            Text(
+                              lastName.isNotEmpty ? lastName : "Apellidos",
+                              style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+                              overflow: TextOverflow.ellipsis
+                            ),
                           ],
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   TableCalendar(
+                    locale: 'es_ES',
                     firstDay: DateTime.utc(2020, 1, 1),
                     lastDay: DateTime.utc(2030, 12, 31),
                     focusedDay: _focusedDay,
-                    selectedDayPredicate: (day) {
-                      return isSameDay(_selectedDay, day);
-                    },
+                    selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                     onDaySelected: (selectedDay, focusedDay) {
                       if (!mounted) return;
                       setState(() {
                         _selectedDay = selectedDay;
-                        _focusedDay = focusedDay;
+                        _focusedDay = focusedDay; // Asegúrate de actualizar el día enfocado también
                       });
                     },
                     calendarFormat: _calendarFormat,
                     onFormatChanged: (format) {
                       if (!mounted) return;
-                      setState(() {
-                        _calendarFormat = format;
-                      });
+                      setState(() { _calendarFormat = format; });
+                    },
+                    onPageChanged: (focusedDay) {
+                       // Actualiza _focusedDay cuando el usuario cambia de página (swipe)
+                       // Esto es importante para que el calendario se sienta consistente.
+                       if (!mounted) return;
+                       setState(() {
+                         _focusedDay = focusedDay;
+                       });
                     },
                      headerStyle: HeaderStyle(
-                      titleTextStyle: TextStyle(fontSize: 16.0, fontWeight: FontWeight.w500),
-                      formatButtonTextStyle: TextStyle(fontSize: 12.0),
+                      titleCentered: true,
+                      titleTextStyle: textTheme.titleMedium ?? const TextStyle(fontSize: 17.0, fontWeight: FontWeight.bold),
+                      formatButtonVisible: true, // Puedes cambiar a false si no quieres el botón
+                      formatButtonTextStyle: textTheme.labelMedium ?? const TextStyle(fontSize: 12.0),
                       formatButtonDecoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade400),
+                        border: Border.all(color: colorScheme.outline.withOpacity(0.7)), // Un poco más visible el borde
                         borderRadius: BorderRadius.circular(12.0),
                       ),
-                      formatButtonPadding: EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
-                      leftChevronIcon: Icon(Icons.chevron_left, size: 24),
-                      rightChevronIcon: Icon(Icons.chevron_right, size: 24),
+                      formatButtonShowsNext: false, // Para que el botón no muestre el siguiente formato
+                      formatButtonPadding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
+                      leftChevronIcon: Icon(Icons.chevron_left, size: 24, color: colorScheme.onSurface),
+                      rightChevronIcon: Icon(Icons.chevron_right, size: 24, color: colorScheme.onSurface),
                     ),
                     daysOfWeekStyle: DaysOfWeekStyle(
-                      weekdayStyle: TextStyle(fontSize: 13.0, color: Colors.black87),
-                      weekendStyle: TextStyle(fontSize: 13.0, color: Colors.purple.shade300),
+                      // Usar textTheme para los días de la semana, con fallback
+                      weekdayStyle: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant) ?? const TextStyle(fontSize: 13.0, fontWeight: FontWeight.w500),
+                      weekendStyle: textTheme.bodySmall?.copyWith(color: colorScheme.primary) ?? const TextStyle(fontSize: 13.0, fontWeight: FontWeight.w500),
                     ),
                     calendarStyle: CalendarStyle(
-                      defaultTextStyle: TextStyle(fontSize: 14.0),
-                      weekendTextStyle: TextStyle(fontSize: 14.0, color: Colors.purple.shade400),
-                      todayTextStyle: TextStyle(fontSize: 14.0, color: Colors.white, fontWeight: FontWeight.bold),
-                      selectedTextStyle: TextStyle(fontSize: 14.0, color: Colors.white, fontWeight: FontWeight.bold),
+                      // Estilos para los números de los días
+                      defaultTextStyle: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface) ?? const TextStyle(fontSize: 14.0),
+                      weekendTextStyle: textTheme.bodyMedium?.copyWith(color: colorScheme.primary) ?? const TextStyle(fontSize: 14.0),
+                      
+                      // Estilos para el día de hoy
+                      todayTextStyle: textTheme.bodyMedium?.copyWith(color: colorScheme.onSecondary, fontWeight: FontWeight.bold) ?? const TextStyle(),
                       todayDecoration: BoxDecoration(
-                        color: Colors.purple.shade200,
+                        color: colorScheme.secondary.withOpacity(0.8), // Color secundario para 'hoy' con opacidad
                         shape: BoxShape.circle,
                       ),
+
+                      // Estilos para el día seleccionado
+                      selectedTextStyle: textTheme.bodyMedium?.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.bold) ?? const TextStyle(),
                       selectedDecoration: BoxDecoration(
-                        color: Colors.purple.shade400,
+                        color: colorScheme.primary, // Color primario para 'seleccionado'
                         shape: BoxShape.circle,
                       ),
-                      cellMargin: EdgeInsets.all(3.0),
+                      
+                      // Estilos para los días fuera del mes actual
+                      outsideTextStyle: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withOpacity(0.5)) ?? TextStyle(fontSize: 14.0, color: Colors.grey.shade400),
+                      
+                      // Estilos para los días deshabilitados
+                      disabledTextStyle: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withOpacity(0.38)) ?? TextStyle(fontSize: 14.0, color: Colors.grey.shade300),
+                      
+                      // Si usas festivos (holidays), también deberías estilizarlos:
+                      // holidayTextStyle: textTheme.bodyMedium?.copyWith(color: colorScheme.error),
+                      // holidayDecoration: BoxDecoration(
+                      //   border: Border.all(color: colorScheme.error, width: 1.5),
+                      //   shape: BoxShape.circle,
+                      // ),
+                      
+                      cellMargin: const EdgeInsets.all(4.0), // Ajusta el margen de las celdas si es necesario
+                      outsideDaysVisible: true, // Mantenlos visibles para un look estándar
+                      // markersAlignment: Alignment.bottomCenter, // Si usas marcadores de eventos
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  const Text("BrainiBot", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const SizedBox(height: 24),
+                  Text("BrainiBot", style: textTheme.titleLarge),
                   const SizedBox(height: 4),
-                  const Text("Empezar o seguir un chat", style: TextStyle(color: Colors.black54)),
+                  Text(
+                    "Empezar o seguir un chat", 
+                    style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     "Último Chat: .... --/--/--",
-                    style: TextStyle(color: Colors.purple.shade300, fontStyle: FontStyle.italic),
+                    style: textTheme.bodySmall?.copyWith(color: colorScheme.primary, fontStyle: FontStyle.italic),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       OutlinedButton(
                         onPressed: () { print("Historial de chats presionado"); },
                         child: const Text("Historial de chats"),
-                        style: OutlinedButton.styleFrom(foregroundColor: Colors.purple),
                       ),
                       ElevatedButton(
                         onPressed: () => _onItemTapped(2),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade600),
-                        child: const Text("Nuevo chat", style: TextStyle(color: Colors.white)),
+                        child: const Text("Nuevo chat"),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
-                  const Text("Tareas", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const SizedBox(height: 24),
+                  Text("Tareas", style: textTheme.titleLarge),
                   const SizedBox(height: 4),
-                  const Text("Crear una nueva tarea o gestionar las ya creadas", style: TextStyle(color: Colors.black54)),
+                  Text(
+                    "Crear una nueva tarea o gestionar las ya creadas",
+                     style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     "Próxima Deadline: tarea:... --/--/--",
-                    style: TextStyle(color: Colors.purple.shade300, fontStyle: FontStyle.italic),
+                    style: textTheme.bodySmall?.copyWith(color: colorScheme.primary, fontStyle: FontStyle.italic),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       OutlinedButton(
                         onPressed: () => _onItemTapped(1),
                         child: const Text("Gestionar tareas"),
-                         style: OutlinedButton.styleFrom(foregroundColor: Colors.purple),
                       ),
                       ElevatedButton(
                         onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => TaskC()));
+                          Navigator.push(context, MaterialPageRoute(builder: (context) =>  TaskC()));
                         },
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade600),
-                        child: const Text("Nueva tarea", style: TextStyle(color: Colors.white)),
+                        child: const Text("Nueva tarea"),
                       ),
                     ],
                   ),

@@ -57,7 +57,7 @@ class PortalAuth extends StatelessWidget {
                 }
 
                 if (camposSnapshot.data == true) {
-                  return User_page();  // El perfil está completo, redirige a la página principal
+                  return DashboardScreen();  // El perfil está completo, redirige a la página principal
                 } else {
                   return FormularioPerfil(
                     email: snapshot.data!.email!,

@@ -130,9 +130,11 @@ class ServeiAuth {
 
       return ("Okay");
     } catch (e, stackTrace) {
-  print("Error: $e");
-  print("Stacktrace: $stackTrace");
-}
+      print("Error: $e");
+      print("Stacktrace: $stackTrace");
+      // Consider returning an error message or rethrowing if appropriate
+      return "Error al actualizar el perfil.";
+    }
   }
 
 
@@ -153,6 +155,8 @@ class ServeiAuth {
       if (snapshot.exists) {
         return snapshot.data() as Map<String, dynamic>;
       } else {
+        // Podrías retornar un mapa con valores por defecto si no existe configuración
+        // o simplemente null como lo haces ahora.
         return null;
       }
     } catch (e) {
@@ -178,7 +182,7 @@ class ServeiAuth {
         return "No hay usuario autenticado.";
       }
 
-      String formattedTime = '${notificationTime.hour}:${notificationTime.minute}';
+      String formattedTime = '${notificationTime.hour.toString().padLeft(2, '0')}:${notificationTime.minute.toString().padLeft(2, '0')}';
 
       await _firestore
           .collection("TareasUsers")
@@ -199,6 +203,7 @@ class ServeiAuth {
         print('Configuración de notificaciones guardada correctamente');
       }).catchError((e) {
         print('Error al guardar la configuración de notificaciones: $e');
+         return "Error al guardar la configuración de notificaciones."; // Retornar error
       });
 
       return null;
@@ -209,48 +214,53 @@ class ServeiAuth {
   }
 
   // Guardar tarea asociada al usuario actual dentro de TareasUsers
-  // Guardar tarea asociada al usuario actual dentro de TareasUsers
-Future<String?> saveTask({
-  required String title,
-  required String category,
-  required String priority,
-  required DateTime date,
-  TimeOfDay? time,
-}) async {
-  try {
-    User? currentUser = getUsuariActual();
+  Future<String?> saveTask({
+    required String title,
+    required String category,
+    required String priority,
+    required DateTime date,
+    TimeOfDay? time,
+    String? description, // <--- NUEVO PARÁMETRO
+  }) async {
+    try {
+      User? currentUser = getUsuariActual();
 
-    if (currentUser == null) {
-      return "No hay usuario autenticado.";
+      if (currentUser == null) {
+        return "No hay usuario autenticado.";
+      }
+
+      String? timeString;
+      if (time != null) {
+        // Asegurar formato HH:MM
+        timeString = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+      }
+
+      await _firestore
+          .collection("TareasUsers")
+          .doc(currentUser.uid)
+          .collection("Tareas")
+          .add({
+        "title": title,
+        "category": category,
+        "priority": priority,
+        "date": date, // Firestore guardará esto como un Timestamp
+        "time": timeString ?? "",
+        "completed": false,
+        "description": description ?? "", // <--- NUEVO CAMPO
+        "createdAt": FieldValue.serverTimestamp(),
+      }).then((_) {
+        print('Tarea guardada correctamente');
+      }).catchError((e) {
+        print('Error al guardar tarea: $e');
+        // Es buena práctica propagar el error o manejarlo aquí
+        // throw e; // o retornar un mensaje de error específico
+        // return "Error interno al guardar tarea."; // Ya está cubierto por el catch general
+      });
+
+      return null; // Indica éxito
+    } catch (e) {
+      print("Error al guardar la tarea: $e");
+      return "Error al guardar la tarea.";
     }
-
-    String? timeString;
-    if (time != null) {
-      timeString = '${time.hour}:${time.minute}';
-    }
-
-    await _firestore
-        .collection("TareasUsers")
-        .doc(currentUser.uid)
-        .collection("Tareas")
-        .add({
-      "title": title,
-      "category": category,
-      "priority": priority,
-      "date": date,
-      "time": timeString ?? "",
-      "completed": false, // Nuevo campo booleano que indica si la tarea está realizada
-      "createdAt": FieldValue.serverTimestamp(),
-    }).then((_) {
-      print('Tarea guardada correctamente');
-    }).catchError((e) {
-      print('Error al guardar tarea: $e');
-    });
-
-    return null;
-  } catch (e) {
-    print("Error al guardar la tarea: $e");
-    return "Error al guardar la tarea.";
   }
 }
-} 

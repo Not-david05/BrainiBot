@@ -1,6 +1,10 @@
 import 'package:brainibot/auth/servei_auth.dart';
+import 'package:brainibot/themes/app_colors.dart'; // Importar AppColors si se usan colores de marca específicos
 import 'package:flutter/material.dart';
+
 class NotificationSettingsScreen extends StatefulWidget {
+  const NotificationSettingsScreen({super.key}); // Añadido super.key
+
   @override
   _NotificationSettingsScreenState createState() =>
       _NotificationSettingsScreenState();
@@ -15,7 +19,7 @@ class _NotificationSettingsScreenState
   int _daysBeforeDeadline = 1;
   bool _enableCountdownForFiveStars = false;
   bool _notifyEveryDayBeforeDeadline = false;
-  TimeOfDay _notificationTime = TimeOfDay(hour: 8, minute: 0);
+  TimeOfDay _notificationTime = const TimeOfDay(hour: 8, minute: 0);
 
   final ServeiAuth _serveiAuth = ServeiAuth();
 
@@ -25,10 +29,9 @@ class _NotificationSettingsScreenState
     _loadSettings();
   }
 
-  // Cargar configuración desde Firestore
   void _loadSettings() async {
     final settings = await _serveiAuth.getNotificationSettings();
-    if (settings != null) {
+    if (settings != null && mounted) {
       setState(() {
         _enableNotifications =
             settings["enableNotifications"] ?? _enableNotifications;
@@ -45,31 +48,35 @@ class _NotificationSettingsScreenState
             settings["notifyEveryDayBeforeDeadline"] ??
                 _notifyEveryDayBeforeDeadline;
 
-        // Convertir la cadena de hora en TimeOfDay
-        final timeStr = settings["notificationTime"] ?? "8:0";
+        final timeStr = settings["notificationTime"] ?? "08:00"; // Asegurar formato HH:mm
         final parts = timeStr.split(":");
-        int hour = int.tryParse(parts[0]) ?? 8;
-        int minute = int.tryParse(parts[1]) ?? 0;
-        _notificationTime = TimeOfDay(hour: hour, minute: minute);
+        if (parts.length == 2) {
+          int hour = int.tryParse(parts[0]) ?? 8;
+          int minute = int.tryParse(parts[1]) ?? 0;
+          _notificationTime = TimeOfDay(hour: hour, minute: minute);
+        } else {
+          _notificationTime = const TimeOfDay(hour: 8, minute: 0); // Fallback
+        }
       });
     }
   }
 
   void _pickTime(BuildContext context) async {
     if (!_enableNotifications) return;
+    // El TimePicker usará los colores del tema global.
     TimeOfDay? pickedTime = await showTimePicker(
       context: context,
       initialTime: _notificationTime,
     );
-    if (pickedTime != null && pickedTime != _notificationTime) {
+    if (pickedTime != null && pickedTime != _notificationTime && mounted) {
       setState(() {
         _notificationTime = pickedTime;
       });
     }
   }
 
-  // Método para guardar la configuración usando el servicio
   void _saveSettings() async {
+    final theme = Theme.of(context); // Para colores de SnackBar
     String? result = await _serveiAuth.saveNotificationSettings(
       enableNotifications: _enableNotifications,
       filterByImportance: _filterByImportance,
@@ -81,184 +88,256 @@ class _NotificationSettingsScreenState
       notificationTime: _notificationTime,
     );
 
-    if (result == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Configuración guardada correctamente.")),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result)),
-      );
+    if (mounted) {
+      if (result == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text("Configuración guardada correctamente."),
+            backgroundColor: theme.colorScheme.primary, // Ejemplo de color de éxito
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result),
+            backgroundColor: theme.colorScheme.error, // Color de error
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
+    // Determinar colores del AppBar según el tema
+    // Asumiendo que AppColors.lightUserPageAppBarBg (rosa) es para tema claro
+    final bool isLightTheme = theme.brightness == Brightness.light;
+    final appBarBackgroundColor = isLightTheme ? AppColors.lightUserPageAppBarBg : theme.appBarTheme.backgroundColor;
+    final appBarForegroundColor = isLightTheme ? AppColors.lightUserPagePrimaryText /* o un color específico para texto sobre rosa */ : theme.appBarTheme.foregroundColor;
+
+
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor, // Color de fondo del tema
       appBar: AppBar(
-        toolbarHeight: 100,
-        backgroundColor: Colors.purple[100],
-        title: Text("Configuración de Notificaciones"),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+        toolbarHeight: 100, // Mantener si es un diseño específico
+        backgroundColor: appBarBackgroundColor,
+        foregroundColor: appBarForegroundColor, // Para el icono de back
+        iconTheme: IconThemeData(color: appBarForegroundColor), // Específico para el icono
+        title: Text(
+          "Configuración de Notificaciones",
+          style: theme.appBarTheme.titleTextStyle?.copyWith(color: appBarForegroundColor),
         ),
+        // leading: IconButton( // El AppBar por defecto ya incluye el botón de back si puede hacer pop
+        //   icon: Icon(Icons.arrow_back),
+        //   onPressed: () => Navigator.pop(context),
+        // ),
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildSwitchTile(
+              context, // Pasar contexto para el tema
               _enableNotifications
-                  ? "Deshabilitar Notificaciones"
-                  : "Habilitar Notificaciones",
-              _enableNotifications, 
+                  ? "Notificaciones Habilitadas" // Título más descriptivo
+                  : "Notificaciones Deshabilitadas",
+              _enableNotifications,
               (value) {
-                setState(() => _enableNotifications = value);
-              }
+                if (mounted) setState(() => _enableNotifications = value);
+              },
             ),
             AbsorbPointer(
               absorbing: !_enableNotifications,
               child: Opacity(
-                opacity: _enableNotifications ? 1.0 : 0.5,
+                opacity: _enableNotifications ? 1.0 : 0.5, // Opacidad para indicar deshabilitado
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     _buildSwitchTile(
-                      "Filtrar notificaciones por importancia",
-                      _filterByImportance, 
+                      context,
+                      "Filtrar por importancia (estrellas)",
+                      _filterByImportance,
                       (value) {
-                        setState(() => _filterByImportance = value);
-                      }
+                        if (mounted) setState(() => _filterByImportance = value);
+                      },
                     ),
-                    SizedBox(height: 20),
+                    
                     if (_filterByImportance)
-                      _buildSliderWithInput(
-                        "Filtrar notificaciones por estrellas",
-                        _minStarLevel,
-                        1,
-                        5, 
-                        (value) {
-                          setState(() => _minStarLevel = value.toInt());
-                        }
+                      Padding( // Añadir padding para separar visualmente
+                        padding: const EdgeInsets.only(top: 10.0, left: 16.0, right: 16.0),
+                        child: _buildSliderWithInput(
+                          context,
+                          "Nivel mínimo de estrellas",
+                          _minStarLevel,
+                          1,
+                          5,
+                          (value) {
+                            if (mounted) setState(() => _minStarLevel = value.toInt());
+                          },
+                        ),
                       ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     _buildSwitchTile(
-                      "Notificaciones activas todos los días antes de la deadline",
-                      _notifyEveryDayBeforeDeadline, 
+                      context,
+                      "Notificar cada día antes de la fecha límite",
+                      _notifyEveryDayBeforeDeadline,
                       (value) {
-                        setState(() => _notifyEveryDayBeforeDeadline = value);
-                      }
+                        if (mounted) setState(() => _notifyEveryDayBeforeDeadline = value);
+                      },
                     ),
-                    SizedBox(height: 20),
+                    
                     if (!_notifyEveryDayBeforeDeadline)
-                      _buildSliderWithInput(
-                        "Repeticiones de notificación",
-                        _notificationRepetitions,
-                        1,
-                        30, 
-                        (value) {
-                          setState(() => _notificationRepetitions = value.toInt());
-                        }
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10.0, left: 16.0, right: 16.0),
+                        child: _buildSliderWithInput(
+                          context,
+                          "Número de notificaciones por tarea",
+                          _notificationRepetitions,
+                          1,
+                          5, // Límite práctico para repeticiones
+                          (value) {
+                            if (mounted) setState(() => _notificationRepetitions = value.toInt());
+                          },
+                        ),
                       ),
-                    SizedBox(height: 20),
-                    _buildSliderWithInput(
-                      "Días antes de la fecha límite para notificar",
-                      _daysBeforeDeadline,
-                      1,
-                      30, 
-                      (value) {
-                        setState(() => _daysBeforeDeadline = value.toInt());
-                      }
-                    ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
+                     Padding(
+                        padding: const EdgeInsets.only(top: 0.0, left: 16.0, right: 16.0), // Ajuste para que no se vea tan indentado si es el único
+                        child: _buildSliderWithInput(
+                          context,
+                          "Notificar X días antes de la fecha límite",
+                          _daysBeforeDeadline,
+                          1,
+                          30, // Un mes como máximo
+                          (value) {
+                            if (mounted) setState(() => _daysBeforeDeadline = value.toInt());
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 20),
                     _buildSwitchTile(
-                      "Habilitar cronómetro para tareas de 5 estrellas",
-                      _enableCountdownForFiveStars, 
+                      context,
+                      "Cuenta regresiva para tareas de 5 estrellas",
+                      _enableCountdownForFiveStars,
                       (value) {
-                        setState(() => _enableCountdownForFiveStars = value);
-                      }
+                        if (mounted) setState(() => _enableCountdownForFiveStars = value);
+                      },
                     ),
-                    SizedBox(height: 20),
-                    ListTile(
-                      leading: Icon(Icons.access_time, color: Colors.purple),
-                      title: Text("Hora de notificación",
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text("${_notificationTime.format(context)}",
-                          style: TextStyle(fontSize: 16)),
-                      trailing: IconButton(
-                        icon: Icon(Icons.edit, color: Colors.blue),
-                        onPressed: () => _pickTime(context),
+                    const SizedBox(height: 20),
+                    Card( // Envolver en Card para consistencia visual
+                      // El estilo de la Card se toma del tema
+                      child: ListTile(
+                        leading: Icon(Icons.access_time_outlined, color: colorScheme.primary),
+                        title: Text("Hora de notificación principal",
+                            style: textTheme.titleMedium), // Usar estilo del tema
+                        subtitle: Text(_notificationTime.format(context),
+                            style: textTheme.bodyLarge?.copyWith(color: colorScheme.onSurfaceVariant)),
+                        trailing: IconButton(
+                          icon: Icon(Icons.edit_outlined, color: colorScheme.secondary), // Usar color secundario del tema
+                          tooltip: "Cambiar hora",
+                          onPressed: () => _pickTime(context),
+                        ),
+                        onTap: () => _pickTime(context), // Hacer todo el ListTile tapeable
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-            SizedBox(height: 30),
+            const SizedBox(height: 30),
             Center(
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.save_alt_outlined),
                 onPressed: _saveSettings,
-                child: Text("Guardar Configuración"),
-                style: ElevatedButton.styleFrom(overlayColor: Colors.purple),
+                label: const Text("Guardar Configuración"),
+                // El estilo se toma de theme.elevatedButtonTheme
               ),
             ),
+            const SizedBox(height: 20), // Espacio al final
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSwitchTile(String title, bool value, Function(bool) onChanged) {
+  Widget _buildSwitchTile(BuildContext context, String title, bool value, Function(bool) onChanged) {
+    final theme = Theme.of(context);
     return SwitchListTile(
-      title: Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
+      title: Text(title, style: theme.textTheme.titleMedium), // Usar estilo del tema
       value: value,
       onChanged: onChanged,
-      activeColor: Colors.purple,
+      activeColor: theme.colorScheme.primary, // Color del switch activo del tema
+      // inactiveThumbColor y inactiveTrackColor también se pueden tomar del tema si se definen en SwitchThemeData
     );
   }
 
   Widget _buildSliderWithInput(
-      String title, int value, int min, int max, Function(double) onChanged) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      BuildContext context, String title, int value, int min, int max, Function(double) onChanged) {
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+
+    return Column( // Envolver en Column para mejor estructura
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
-              Slider(
+        Text(title, style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.normal, color: theme.colorScheme.onSurfaceVariant)), // Título un poco más sutil
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: Slider(
                 value: value.toDouble(),
                 min: min.toDouble(),
                 max: max.toDouble(),
-                divisions: max - min,
-                label: "$value",
+                divisions: (max - min == 0) ? null : (max-min), // Evitar división por cero si max == min
+                label: value.toString(),
                 onChanged: onChanged,
-                activeColor: Colors.purple,
+                activeColor: theme.sliderTheme.activeTrackColor ?? theme.colorScheme.primary,
+                inactiveColor: theme.sliderTheme.inactiveTrackColor ?? theme.colorScheme.primary.withOpacity(0.3),
+                thumbColor: theme.sliderTheme.thumbColor ?? theme.colorScheme.primary,
               ),
-            ],
-          ),
-        ),
-        SizedBox(
-          width: 50,
-          child: TextField(
-            decoration: InputDecoration(border: OutlineInputBorder()),
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.center,
-            controller: TextEditingController(text: "$value"),
-            onSubmitted: (newValue) {
-              int? newIntValue = int.tryParse(newValue);
-              if (newIntValue != null) {
-                newIntValue = newIntValue.clamp(min, max);
-                setState(() {
-                  onChanged(newIntValue!.toDouble());
-                });
-              }
-            },
-          ),
+            ),
+            const SizedBox(width: 16),
+            SizedBox(
+              width: 60, // Ancho ajustado
+              height: 40, // Altura para alinear mejor
+              child: TextField(
+                decoration: InputDecoration( // Usará el inputDecorationTheme global
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0), // Ajustar padding
+                  isDense: true,
+                  // border: OutlineInputBorder(), // Ya definido en el tema
+                ),
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                controller: TextEditingController(text: value.toString()),
+                // style: textTheme.bodyLarge, // Estilo del texto dentro del TextField
+                onSubmitted: (newValue) {
+                  int? newIntValue = int.tryParse(newValue);
+                  if (newIntValue != null) {
+                    newIntValue = newIntValue.clamp(min, max); // Asegurar que esté en el rango
+                    onChanged(newIntValue.toDouble()); // Llamar al onChanged del slider
+                  } else {
+                    // Si no es un número válido, revertir al valor actual del slider
+                    // Esto requiere que el TextEditingController se actualice cuando el slider cambia,
+                    // o manejar el estado de forma más compleja.
+                    // Por simplicidad, si el input no es válido, no hacemos nada o podrías
+                    // recargar el controller con el `value` actual.
+                     final currentController = TextEditingController(text: value.toString());
+                     currentController.selection = TextSelection.fromPosition(TextPosition(offset: currentController.text.length));
+                     // No es ideal actualizar directamente el controller así, una mejor solución
+                     // sería usar un `key` o un controller que se actualice con el slider.
+                  }
+                },
+              ),
+            ),
+          ],
         ),
       ],
     );

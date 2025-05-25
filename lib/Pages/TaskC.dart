@@ -1,11 +1,13 @@
-import 'package:brainibot/Pages/Starter.dart';
-import 'package:brainibot/Widgets/Time_builder.dart';
-import 'package:brainibot/auth/servei_auth.dart';
-import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:brainibot/Pages/Starter.dart';
+// import 'package:brainibot/Widgets/Time_builder.dart'; // Comentado si no se usa o se ajusta después
+import 'package:brainibot/auth/servei_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Se usa para FirebaseAuth.instance.currentUser
+import 'package:flutter/material.dart';
 
 class TaskC extends StatefulWidget {
+  const TaskC({super.key}); // Añadido super.key
+
   @override
   _TaskCState createState() => _TaskCState();
 }
@@ -17,11 +19,11 @@ class _TaskCState extends State<TaskC> {
   String? _selectedPriority;
   String? _customCategory;
   String? _taskTitle;
+  String? _taskDescription;
 
   final List<String> _categories = [
     'Estudios', 'Diaria', 'Recados', 'Trabajo', 'Personal', 'Otros'
   ];
-
   final List<String> _priorities = [
     'Urgente 5★', 'Alta 4★', 'Media 3★', 'Baja 2★', 'Opcional 1★'
   ];
@@ -39,18 +41,28 @@ class _TaskCState extends State<TaskC> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(Duration(seconds: 6), (Timer timer) {
-      if (_currentPage < _carouselImages.length - 1) {
-        _currentPage++;
-      } else {
-        _currentPage = 0;
-      }
-      _pageController.animateToPage(
-        _currentPage,
-        duration: Duration(milliseconds: 500),
-        curve: Curves.easeInOut,
-      );
-    });
+    if (_carouselImages.isNotEmpty) { // Iniciar el timer solo si hay imágenes
+      _timer = Timer.periodic(const Duration(seconds: 6), (Timer timer) {
+        if (!mounted) {
+          timer.cancel(); // Cancelar el timer si el widget ya no está montado
+          return;
+        }
+        if (_carouselImages.isNotEmpty) {
+          if (_currentPage < _carouselImages.length - 1) {
+            _currentPage++;
+          } else {
+            _currentPage = 0;
+          }
+          if (_pageController.hasClients) {
+            _pageController.animateToPage(
+              _currentPage,
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeInOut,
+            );
+          }
+        }
+      });
+    }
   }
 
   @override
@@ -64,10 +76,12 @@ class _TaskCState extends State<TaskC> {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate ?? DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2101),
+      firstDate: DateTime.now().subtract(const Duration(days: 30)), // Permitir seleccionar fechas recientes pasadas
+      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+      // El builder que forzaba el tema oscuro se elimina.
+      // El DatePicker tomará el estilo del Theme.of(context) global.
     );
-    if (picked != null && picked != _selectedDate) {
+    if (picked != null && picked != _selectedDate && mounted) {
       setState(() {
         _selectedDate = picked;
       });
@@ -78,8 +92,10 @@ class _TaskCState extends State<TaskC> {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: _selectedTime ?? TimeOfDay.now(),
+      // El builder que forzaba el tema oscuro se elimina.
+      // El TimePicker tomará el estilo del Theme.of(context) global.
     );
-    if (picked != null && picked != _selectedTime) {
+    if (picked != null && picked != _selectedTime && mounted) {
       setState(() {
         _selectedTime = picked;
       });
@@ -87,141 +103,264 @@ class _TaskCState extends State<TaskC> {
   }
 
   Future<void> _saveTask() async {
-    if (_taskTitle != null && _selectedDate != null && _selectedCategory != null && _selectedPriority != null) {
-      String? result = await ServeiAuth().saveTask(
-        title: _taskTitle!,
-        category: _selectedCategory!,
-        priority: _selectedPriority!,
-        date: _selectedDate!,
-        time: _selectedTime,
+    final theme = Theme.of(context); // Para colores de SnackBar y Dialog
+
+    if (_taskTitle == null || _taskTitle!.trim().isEmpty) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text("Por favor, ingrese un título para la tarea."), backgroundColor: theme.colorScheme.error));
+      return;
+    }
+    if (_selectedCategory == null) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text("Por favor, seleccione una categoría."), backgroundColor: theme.colorScheme.error));
+      return;
+    }
+    if (_selectedCategory == 'Otros' && (_customCategory == null || _customCategory!.trim().isEmpty)) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text("Por favor, especifique la categoría 'Otros'."), backgroundColor: theme.colorScheme.error));
+      return;
+    }
+    if (_selectedPriority == null) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text("Por favor, seleccione una prioridad."), backgroundColor: theme.colorScheme.error));
+      return;
+    }
+    if (_selectedDate == null) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text("Por favor, seleccione una fecha."), backgroundColor: theme.colorScheme.error));
+      return;
+    }
+
+    if(mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        useRootNavigator: true, 
+        builder: (BuildContext dialogContext) { // Usar un contexto diferente para el diálogo
+          return Dialog(
+            backgroundColor: Colors.transparent, // Fondo transparente para el diálogo en sí
+            elevation: 0,
+            child: Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Theme.of(dialogContext).colorScheme.primary), // Usar color primario del tema
+              ),
+            ),
+          );
+        },
       );
+    }
+  
+    String categoryToSave = _selectedCategory == 'Otros' ? _customCategory! : _selectedCategory!;
+
+    String? result = await ServeiAuth().saveTask(
+      title: _taskTitle!,
+      category: categoryToSave,
+      priority: _selectedPriority!,
+      date: _selectedDate!,
+      time: _selectedTime,
+      description: _taskDescription,
+    );
+
+    if (mounted) {
+       // Cerrar el diálogo de carga (es importante hacerlo después del await)
+      Navigator.of(context, rootNavigator: true).pop();
 
       if (result == null) {
-        // Si no hay error, navega a la página de inicio
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => Starter()),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text("Tarea guardada con éxito."),
+            backgroundColor: theme.colorScheme.primary, // Usar color primario para éxito
+          )
         );
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+             Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const Starter()), // Asumiendo que Starter es una pantalla y no una función
+              (Route<dynamic> route) => false,
+            );
+          }
+        });
       } else {
-        // Si hubo un error, muestra un mensaje
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result),
+            backgroundColor: theme.colorScheme.error, // Usar color de error
+          )
+        );
       }
-    } else {
-      // Si falta información
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Por favor complete todos los campos.")));
     }
+  }
+
+  Widget _buildDescriptionField(BuildContext context) {
+    final theme = Theme.of(context);
+    // El InputDecoration usará el inputDecorationTheme global
+    return TextField(
+      style: TextStyle(color: theme.colorScheme.onSurface), // Color de texto del tema
+      maxLines: 4,
+      onChanged: (value) => _taskDescription = value,
+      decoration: const InputDecoration( // La mayoría de las propiedades se tomarán del tema
+        labelText: "Descripción (opcional)",
+        // labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant), // Tomado del tema
+        alignLabelWithHint: true,
+        hintText: "Añade detalles adicionales sobre tu tarea...",
+        // hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7)), // Tomado del tema
+        // filled y fillColor también son parte del tema
+      ),
+      keyboardType: TextInputType.multiline,
+      textCapitalization: TextCapitalization.sentences,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
     return Scaffold(
-      backgroundColor: Colors.blueGrey[900],
+      backgroundColor: theme.scaffoldBackgroundColor, // Color de fondo del tema
       appBar: AppBar(
-        title: Text("Crear Tarea", style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        // title, backgroundColor, elevation, iconTheme se toman de theme.appBarTheme
+        title: const Text("Crear Tarea"),
+        // backgroundColor: Colors.transparent, // Se puede omitir si el tema ya lo define
+        // elevation: 0, // Se puede omitir si el tema ya lo define
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back), // El color se toma de appBarTheme.iconTheme
           onPressed: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => Starter()),
-            );
+            // Considerar si Starter es la pantalla a la que realmente se quiere volver.
+            // Si TaskC se abrió sobre otra pantalla (ej. TaskManagerScreen), usar Navigator.pop(context)
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              // Fallback si no hay nada que "popear"
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const Starter()),
+              );
+            }
           },
         ),
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(
-              height: 200,
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: _carouselImages.length,
-                itemBuilder: (context, index) {
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(
-                      _carouselImages[index],
-                      fit: BoxFit.cover,
-                    ),
-                  );
-                },
+            if (_carouselImages.isNotEmpty)
+              SizedBox(
+                height: 200,
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: _carouselImages.length,
+                  itemBuilder: (context, index) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12), // Podría ser un valor del tema
+                        child: Image.asset(
+                          _carouselImages[index],
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceVariant, // Color de fondo del tema para error
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Center(child: Icon(Icons.image_not_supported_outlined, color: colorScheme.onSurfaceVariant, size: 50)),
+                            );
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-            SizedBox(height: 20),
-            _buildTextField("Título de la tarea", Icons.title, (value) {
+            if (_carouselImages.isNotEmpty) const SizedBox(height: 24), // Espacio después del carrusel
+
+            _buildTextField(context, "Título de la tarea *", Icons.title_outlined, (value) {
               _taskTitle = value;
             }),
-            SizedBox(height: 10),
-            _buildDropdown("Categoría", _categories, _selectedCategory, (String? newValue) {
-              setState(() {
-                _selectedCategory = newValue;
-                if (newValue != 'Otros') _customCategory = null;
-              });
+            const SizedBox(height: 16),
+            _buildDropdown(context, "Categoría *", Icons.category_outlined, _categories, _selectedCategory, (String? newValue) {
+              if (mounted) {
+                setState(() {
+                  _selectedCategory = newValue;
+                  if (newValue != 'Otros') _customCategory = null;
+                });
+              }
             }),
-            if (_selectedCategory == 'Otros') _buildTextField("Especifica la categoría", Icons.category, (value) {
-              _customCategory = value;
+            if (_selectedCategory == 'Otros')
+              Padding(
+                padding: const EdgeInsets.only(top: 16.0),
+                child: _buildTextField(context, "Especifica la categoría *", Icons.edit_note_outlined, (value) {
+                  _customCategory = value;
+                }),
+              ),
+            const SizedBox(height: 16),
+            _buildDropdown(context, "Prioridad *", Icons.star_outline_rounded, _priorities, _selectedPriority, (String? newValue) {
+              if (mounted) {
+                setState(() {
+                  _selectedPriority = newValue;
+                });
+              }
             }),
-            SizedBox(height: 10),
-            _buildDropdown("Prioridad", _priorities, _selectedPriority, (String? newValue) {
-              setState(() {
-                _selectedPriority = newValue;
-              });
-            }),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             _buildDateSelector(context),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             _buildTimeSelector(context),
-            SizedBox(height: 20),
-            TimeBuilder(context),
-            SizedBox(height: 20),
-            _buildSubmitButton(),
+            const SizedBox(height: 20),
+            _buildDescriptionField(context),
+            const SizedBox(height: 20),
+            // if (FirebaseAuth.instance.currentUser != null)
+            //   TimeBuilder(context), // Comentado, asegurarse de su propósito y si necesita refactorización de tema
+            const SizedBox(height: 30),
+            _buildSubmitButton(context),
+            const SizedBox(height: 20),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTextField(String label, IconData icon, Function(String) onChanged) {
+  Widget _buildTextField(BuildContext context, String label, IconData icon, Function(String) onChanged) {
+    final theme = Theme.of(context);
+    // InputDecoration usará el inputDecorationTheme global
     return TextField(
-      style: TextStyle(color: Colors.white),
+      style: TextStyle(color: theme.colorScheme.onSurface), // Color de texto del tema
       onChanged: onChanged,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: Colors.white70),
-        prefixIcon: Icon(icon, color: Colors.white70),
-        border: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
-        enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white54)),
-        focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.cyanAccent)),
-        filled: true,
-        fillColor: Colors.blueGrey[800],
+        // labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant), // Tomado del tema
+        prefixIcon: Icon(icon, color: theme.inputDecorationTheme.prefixIconColor ?? theme.colorScheme.onSurfaceVariant), // Color del icono del tema
+        // border, enabledBorder, focusedBorder, filled, fillColor se toman del tema
       ),
+      textCapitalization: TextCapitalization.sentences,
     );
   }
 
-  Widget _buildDropdown(String label, List<String> items, String? selectedItem, ValueChanged<String?> onChanged) {
+  Widget _buildDropdown(BuildContext context, String label, IconData icon, List<String> items, String? selectedItem, ValueChanged<String?> onChanged) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
+    // InputDecoration usará el inputDecorationTheme global
     return InputDecorator(
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: Colors.white70),
-        border: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
-        filled: true,
-        fillColor: Colors.blueGrey[800],
+        // labelStyle: TextStyle(color: colorScheme.onSurfaceVariant), // Tomado del tema
+        prefixIcon: Icon(icon, color: theme.inputDecorationTheme.prefixIconColor ?? colorScheme.onSurfaceVariant),
+        // border, enabledBorder, focusedBorder, filled, fillColor se toman del tema
+        contentPadding: theme.inputDecorationTheme.contentPadding ?? const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          dropdownColor: Colors.blueGrey[800],
+          dropdownColor: theme.popupMenuTheme.color ?? colorScheme.surface, // Color del menú desplegable del tema
           value: selectedItem,
-          hint: Text('Selecciona una opción', style: TextStyle(color: Colors.white70)),
-          icon: Icon(Icons.arrow_drop_down, color: Colors.white70),
-          style: TextStyle(color: Colors.white),
+          isExpanded: true,
+          hint: Text('Selecciona una opción', style: TextStyle(color: colorScheme.onSurfaceVariant.withOpacity(0.7))),
+          icon: Icon(Icons.arrow_drop_down_rounded, color: colorScheme.onSurfaceVariant), // Icono del tema
+          style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface), // Estilo de texto del tema
           onChanged: onChanged,
           items: items.map((String value) {
             return DropdownMenuItem<String>(
               value: value,
-              child: Text(value, style: TextStyle(color: Colors.white)),
+              child: Text(value),
             );
           }).toList(),
         ),
@@ -230,15 +369,19 @@ class _TaskCState extends State<TaskC> {
   }
 
   Widget _buildDateSelector(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
     return InkWell(
       onTap: () => _selectDate(context),
       child: InputDecorator(
+        // InputDecoration usará el inputDecorationTheme global
         decoration: InputDecoration(
-          labelText: "Fecha de la tarea",
-          labelStyle: TextStyle(color: Colors.white70),
-          border: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
-          filled: true,
-          fillColor: Colors.blueGrey[800],
+          labelText: "Fecha de la tarea *",
+          // labelStyle: TextStyle(color: colorScheme.onSurfaceVariant), // Tomado del tema
+          // border, enabledBorder, filled, fillColor se toman del tema
+          contentPadding: theme.inputDecorationTheme.contentPadding ?? const EdgeInsets.symmetric(horizontal: 12.0, vertical: 18.0),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -246,10 +389,12 @@ class _TaskCState extends State<TaskC> {
             Text(
               _selectedDate == null
                   ? 'Selecciona una fecha'
-                  : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
-              style: TextStyle(color: Colors.white, fontSize: 16),
+                  : '${_selectedDate!.day.toString().padLeft(2, '0')}/${_selectedDate!.month.toString().padLeft(2, '0')}/${_selectedDate!.year}',
+              style: textTheme.titleMedium?.copyWith(
+                color: _selectedDate == null ? colorScheme.onSurfaceVariant.withOpacity(0.7) : colorScheme.onSurface,
+              ),
             ),
-            Icon(Icons.calendar_today, color: Colors.cyanAccent),
+            Icon(Icons.calendar_today_outlined, color: colorScheme.primary), // Usar color primario
           ],
         ),
       ),
@@ -257,15 +402,16 @@ class _TaskCState extends State<TaskC> {
   }
 
   Widget _buildTimeSelector(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+    
     return InkWell(
       onTap: () => _selectTime(context),
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: "Hora de la tarea (opcional)",
-          labelStyle: TextStyle(color: Colors.white70),
-          border: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
-          filled: true,
-          fillColor: Colors.blueGrey[800],
+          contentPadding: theme.inputDecorationTheme.contentPadding ?? const EdgeInsets.symmetric(horizontal: 12.0, vertical: 18.0),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -274,23 +420,31 @@ class _TaskCState extends State<TaskC> {
               _selectedTime == null
                   ? 'Selecciona una hora'
                   : _selectedTime!.format(context),
-              style: TextStyle(color: Colors.white, fontSize: 16),
+              style: textTheme.titleMedium?.copyWith(
+                color: _selectedTime == null ? colorScheme.onSurfaceVariant.withOpacity(0.7) : colorScheme.onSurface,
+              ),
             ),
-            Icon(Icons.access_time, color: Colors.cyanAccent),
+            Icon(Icons.access_time_outlined, color: colorScheme.primary),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSubmitButton() {
-    return ElevatedButton(
-      onPressed: _saveTask, // Llamamos a la función que guarda la tarea
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.cyanAccent,
-        padding: EdgeInsets.symmetric(horizontal: 50, vertical: 15),
-      ),
-      child: Text("Crear tarea", style: TextStyle(fontSize: 16, color: Colors.black)),
+  Widget _buildSubmitButton(BuildContext context) {
+    // El ElevatedButton usará el elevatedButtonTheme global
+    return ElevatedButton.icon(
+      icon: const Icon(Icons.add_task_rounded),
+      onPressed: _saveTask,
+      label: const Text("Crear tarea"),
+      // style: ElevatedButton.styleFrom(
+      //   backgroundColor: colorScheme.primary, // Tomado del tema
+      //   foregroundColor: colorScheme.onPrimary, // Tomado del tema
+      //   padding: EdgeInsets.symmetric(vertical: 16),
+      //   textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold), // Tomado del tema
+      //   minimumSize: Size(double.infinity, 50),
+      //   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), // Tomado del tema
+      // ),
     );
   }
 }
