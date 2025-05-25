@@ -1,4 +1,4 @@
-import 'package:brainibot/Admin/admin_page.dart';
+
 import 'package:flutter/material.dart';
 
 class AuthForm extends StatelessWidget {
@@ -135,12 +135,7 @@ class AuthForm extends StatelessWidget {
               SizedBox(height: 16),
               TextButton(
                 onPressed: () {
-                   Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>AdminPage(),
-                          ),
-                        );
+                   
                 },
                 child: Text(
                   '¿Olvidaste tu contraseña?',
