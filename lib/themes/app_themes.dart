@@ -60,7 +60,7 @@ class AppThemes {
       style: TextButton.styleFrom(foregroundColor: AppColors.darkAccent),
     ),
     iconTheme: IconThemeData(color: AppColors.darkIcon),
-    cardTheme: CardThemeData(
+    cardTheme: CardTheme(
       color: AppColors.darkCardBg,
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -110,7 +110,7 @@ class AppThemes {
         fontSize: 20,
       ),
     ),
-    cardTheme: CardThemeData(
+    cardTheme: CardTheme(
       color: AppColors.lightUserPageCardBg,
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

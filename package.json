@@ -1,9 +1,19 @@
 {
+  "name": "brainibot",
+  "version": "0.1.0",
   "dependencies": {
     "@google-cloud/vertexai": "^1.10.0",
     "axios": "^1.9.0",
     "firebase-admin": "^13.2.0",
     "firebase-functions": "^6.3.2",
     "openai": "^4.92.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.5.0"
+  },
+  "scripts": {
+    "tauri": "tauri",
+    "build": "tauri build",
+    "dev": "tauri dev"
   }
 }
