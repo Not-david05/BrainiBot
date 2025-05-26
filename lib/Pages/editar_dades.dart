@@ -362,11 +362,11 @@ class _EditarDadesState extends State<EditarDades> {
       }, SetOptions(merge: true));
 
       if (mounted) {
-        if (dialogShown) Navigator.pop(context);
+        if (dialogShown) Navigator.pop(context); // cierra solo el diálogo
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Perfil actualizado con éxito.')),
         );
-        Navigator.pop(context); 
+        // <-- Aquí SE ELIMINÓ el Navigator.pop(context) que cerraba la pantalla
       }
     } catch (e) {
       if (mounted) {
